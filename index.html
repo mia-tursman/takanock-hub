@@ -1177,13 +1177,14 @@
     var table = document.createElement('table');
     table.className = 'tickets';
     var thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th>Request Type</th><th>Status</th><th>Submitted</th><th>Description</th></tr>';
+    thead.innerHTML = '<tr><th>Name</th><th>Request</th><th>Status</th><th>Submitted</th><th>Description</th></tr>';
     table.appendChild(thead);
 
     var tbody = document.createElement('tbody');
     tickets.forEach(function (t) {
       var tr = document.createElement('tr');
-      tr.appendChild(td(t.requestType || '—'));
+      tr.appendChild(td(t.name || '—'));
+      tr.appendChild(td(t.request || '—'));
       var statusTd = document.createElement('td');
       statusTd.appendChild(statusBadge(t.status));
       tr.appendChild(statusTd);

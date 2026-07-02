@@ -314,6 +314,59 @@ async function handleUploadGisAttachment(payload, res) {
  * Ticket lookup
  * --------------------------------------------------------------- */
 
+const SUMMARIZE_REQUESTS_TOOL = {
+  name: 'summarize_requests',
+  description: 'Return a two-word summary of what the person wanted for each numbered request, in the same order as given.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      summaries: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Two-word summaries, one per request, in the same order as the input list.'
+      }
+    },
+    required: ['summaries']
+  }
+};
+
+// Turns each ticket's raw description into a short "Request" label for the
+// ticket list. Fails soft — a summarization error should never break the
+// lookup itself, it just falls back to the raw request type.
+async function summarizeRequests(tickets) {
+  if (!tickets.length) return;
+
+  const prompt = tickets
+    .map((t, i) => `${i + 1}. ${t.description || t.requestType || 'No description provided'}`)
+    .join('\n');
+
+  try {
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 500,
+        system: 'You summarize support and automation requests into short labels for a ticket list.',
+        messages: [{ role: 'user', content: `Give a two-word summary of what the person wanted for each request below:\n\n${prompt}` }],
+        tools: [SUMMARIZE_REQUESTS_TOOL],
+        tool_choice: { type: 'tool', name: 'summarize_requests' }
+      })
+    });
+    const data = await anthropicRes.json();
+    const toolUse = (data.content || []).find((c) => c.type === 'tool_use' && c.name === 'summarize_requests');
+    const summaries = (toolUse && Array.isArray(toolUse.input.summaries)) ? toolUse.input.summaries : [];
+    tickets.forEach((t, i) => { t.request = summaries[i] || t.requestType || 'Request'; });
+  } catch (err) {
+    console.error('Request summarization failed:', err.message);
+    tickets.forEach((t) => { t.request = t.requestType || 'Request'; });
+  }
+}
+
 async function handleLookup(email, res) {
   const safeEmail = String(email).replace(/"/g, '\\"');
   const formula = `AND(LOWER({Submitter Email})=LOWER("${safeEmail}"), NOT({Status}="Closed"), NOT({Status}="Resolved"))`;
@@ -332,20 +385,32 @@ async function handleLookup(email, res) {
   ]);
 
   const tickets = itRecords.map((r) => ({
+    name: r.fields['Submitter Name'] || '',
     requestType: r.fields['Request Type'] || '',
     status: r.fields['Status'] || 'New',
     submittedAt: r.fields['Submitted At'] || '',
     description: r.fields['Request Description'] || ''
   })).concat(autoRecords.map((r) => ({
+    name: r.fields['Submitter Name'] || '',
     requestType: `Automation - ${r.fields['Title'] || 'Untitled'}`,
     status: r.fields['Status'] || 'New',
     submittedAt: r.fields['Submitted Date'] || '',
     description: r.fields['Description'] || ''
   })));
 
+  await summarizeRequests(tickets);
+
   tickets.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 
-  return res.status(200).json(tickets);
+  const publicTickets = tickets.map((t) => ({
+    name: t.name,
+    request: t.request,
+    status: t.status,
+    submittedAt: t.submittedAt,
+    description: t.description
+  }));
+
+  return res.status(200).json(publicTickets);
 }
 
 /* -----------------------------------------------------------------
