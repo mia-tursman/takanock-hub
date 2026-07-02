@@ -4,6 +4,10 @@
 const IT_BASE = 'appvNDBoDDGFshd5J';
 const IT_TABLE = 'tblVudrEioL0al0co';
 
+const IT_DEPARTMENTS = ['Finance', 'Development', 'Engineering', 'Operations', 'GIS', 'Executive', 'Other'];
+const IT_REQUEST_TYPES = ['Permissions Issue', 'New SharePoint Site', 'Hardware Issue', 'New Dataset', 'Other'];
+const IT_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
+
 const GIS_BASE = 'appvNDBoDDGFshd5J';
 const GIS_TABLE = 'tbliYJrSDnWSipK0Z';
 
@@ -16,8 +20,8 @@ const AUTOMATION_TABLE = 'tblfqTJvzI7IW7OiN';
 const PROJECT_BASE = 'app8TcmAlSOb6rkYx';
 const PROJECT_TABLE = 'tbl9pfOnrPMRccTPn';
 
-const PROJECT_NAMES = ['Baccara', 'Tallmadge', 'Hale', 'Connemara'];
-const PROJECT_TRIGGER_KEYWORDS = ['baccara', 'tallmadge', 'hale', 'connemara', 'project', 'status', 'stage', 'phase'];
+const PROJECT_NAMES = ['Baccara', 'Tallmadge', 'Hale'];
+const PROJECT_TRIGGER_KEYWORDS = ['baccara', 'tallmadge', 'hale', 'project', 'status', 'stage', 'phase'];
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_DEV_READ_TOKEN = process.env.AIRTABLE_DEV_READ_TOKEN;
@@ -102,20 +106,31 @@ async function airtableList(baseId, tableId, formula, token) {
  * Request submission
  * --------------------------------------------------------------- */
 
+// Standard Takanock email convention: first initial + last name @takanock.com
+// (e.g. "John Smith" -> jsmith@takanock.com). We never ask submitters for
+// their email directly — it's always derived from the name they give us.
+function deriveEmail(fullName) {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '';
+  const first = parts[0];
+  const last = parts[parts.length - 1];
+  const local = (first[0] + last).toLowerCase().replace(/[^a-z0-9.]/g, '');
+  return local ? `${local}@takanock.com` : '';
+}
+
 async function handleSubmit(record, table, res) {
   const name = record.name || '';
-  const email = record.email || '';
   const department = record.department || '';
   const now = new Date().toISOString();
 
   if (table === 'it') {
     const fields = {
       'Submitter Name': name,
-      'Submitter Email': email,
-      'Department': department,
-      'Request Type': record.requestType || '',
+      'Submitter Email': deriveEmail(name),
+      'Department': IT_DEPARTMENTS.includes(department) ? department : 'Other',
+      'Request Type': IT_REQUEST_TYPES.includes(record.requestType) ? record.requestType : 'Other',
       'Request Description': record.description || '',
-      'Urgency': record.urgency || '',
+      'Urgency': IT_URGENCIES.includes(record.urgency) ? record.urgency : 'Medium',
       'Input Channel': 'Hub',
       'Status': 'New',
       'Submitted At': now
@@ -128,7 +143,7 @@ async function handleSubmit(record, table, res) {
     const fields = {
       'Title': record.title || '',
       'Submitter Name': name,
-      'Submitter Email': email,
+      'Submitter Email': deriveEmail(name),
       'Department': department,
       'Description': record.description || '',
       'Business Problem': record.businessProblem || '',
@@ -141,9 +156,10 @@ async function handleSubmit(record, table, res) {
   }
 
   if (table === 'gis') {
+    const requesterName = record.requesterName || '';
     const fields = {
-      'Requester Name': name,
-      'Requester Email': email,
+      'Requester Name': requesterName,
+      'Requester Email': deriveEmail(requesterName),
       'Project': record.project || '',
       'Request Type': GIS_REQUEST_TYPES.includes(record.requestType) ? record.requestType : 'Other',
       'Description': record.description || ''
@@ -173,7 +189,7 @@ async function handleSubmit(record, table, res) {
 
     const fields = {
       'Submitter Name': name,
-      'Submitter Email': email,
+      'Submitter Email': deriveEmail(name),
       'Department': department,
       'Request Type': requestType,
       'Request Description': description,

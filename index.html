@@ -359,6 +359,7 @@
         <option value="legal">Legal Intake</option>
       </select>
       <form id="request-form"></form>
+      <div id="it-flow" style="display:none;"></div>
       <div id="gis-flow" style="display:none;"></div>
     </div>
   </section>
@@ -482,7 +483,7 @@
   /* ---------------------------------------------------------------
    * MODE 1: Assistant chat
    * ------------------------------------------------------------- */
-  var SYSTEM_PROMPT = "You are the Takanock Assistant, an internal tool for Takanock LLC employees. Takanock develops grid-connected power generation infrastructure for data centers. You can help employees with: answering general company questions, routing IT issues, logging automation ideas, finding the right person to contact, and answering questions about active projects (Baccara, Tallmadge, Hale, Connemara). If someone describes an IT problem, offer to take them to the IT intake form. If someone has an automation idea, offer to take them to the automation intake form. Be concise and helpful. If you don't know something, say so honestly.";
+  var SYSTEM_PROMPT = "You are the Takanock Assistant, an internal tool for Takanock LLC employees. Takanock develops grid-connected power generation infrastructure for data centers. You can help employees with: answering general company questions, routing IT issues, logging automation ideas, finding the right person to contact, and answering questions about active projects (Baccara, Tallmadge, Hale). If someone describes an IT problem, offer to take them to the IT intake form. If someone has an automation idea, offer to take them to the automation intake form. Be concise and helpful. If you don't know something, say so honestly.";
 
   var chatHistory = [];
   var chatMessagesEl = document.getElementById('chat-messages');
@@ -577,17 +578,9 @@
    * MODE 2: Submit a Request
    * ------------------------------------------------------------- */
   var DEPARTMENTS = ['Development', 'GIS', 'Finance', 'Legal', 'HR', 'Commercial', 'Engineering', 'Operations', 'Other'];
-  var PROJECTS = ['Baccara', 'Tallmadge', 'Hale', 'Connemara', 'Other'];
+  var PROJECTS = ['Baccara', 'Tallmadge', 'Hale', 'Other'];
 
   var FORM_CONFIGS = {
-    it: {
-      table: 'it',
-      fields: [
-        { name: 'requestType', label: 'Request Type', type: 'select', options: ['Access/Permissions', 'Hardware', 'Software', 'Network/Connectivity', 'Email/Calendar', 'SharePoint', 'Other'], required: true },
-        { name: 'description', label: 'Description', type: 'textarea', required: true },
-        { name: 'urgency', label: 'Urgency', type: 'select', options: ['Low', 'Medium', 'High', 'Urgent'], required: true }
-      ]
-    },
     automation: {
       table: 'automation',
       fields: [
@@ -654,13 +647,13 @@
   function renderRequestForm(type) {
     var cfg = FORM_CONFIGS[type];
     document.getElementById('gis-flow').style.display = 'none';
+    document.getElementById('it-flow').style.display = 'none';
     requestForm.style.display = '';
     requestForm.innerHTML = '';
     requestForm.dataset.type = type;
     showBanner('request-banner', null);
 
     addField(requestForm, { name: 'name', label: 'Your Name', type: 'text', required: true });
-    addField(requestForm, { name: 'email', label: 'Your Email', type: 'email', required: true });
     addField(requestForm, { name: 'department', label: 'Department', type: 'select', options: DEPARTMENTS, required: true });
     cfg.fields.forEach(function (f) { addField(requestForm, f); });
 
@@ -674,6 +667,8 @@
   function showRequestType(type) {
     if (type === 'gis') {
       renderGisIntake();
+    } else if (type === 'it') {
+      renderItIntake();
     } else {
       renderRequestForm(type);
     }
@@ -724,7 +719,150 @@
     showRequestType(type);
   }
 
-  renderRequestForm('it');
+  /* ---------------------------------------------------------------
+   * IT Help Desk: chat intake
+   * Matches the existing tak-it-help.vercel.app tool's behavior exactly:
+   * pure conversational intake — the assistant gathers fields, presents
+   * a summary, and on user confirmation ("yes") responds with a raw JSON
+   * object that the client parses and submits directly. No separate
+   * review form — that tool doesn't have one, so neither does this.
+   * ------------------------------------------------------------- */
+  var IT_SYSTEM_PROMPT = "You are the Takanock IT Help Desk intake assistant. Your job is to help Takanock employees submit IT support requests conversationally.\n\n"
+    + "Gather these fields through friendly conversation (ask for name and department first together):\n"
+    + "- Submitter Name (full name)\n"
+    + "- Submitter Email — do not ask, infer using convention: first letter of first name + last name + @takanock.com. John Smith = jsmith@takanock.com\n"
+    + "- Department (Finance, Development, Engineering, Operations, GIS, Executive, Other)\n"
+    + "- Request Type (Permissions Issue, New SharePoint Site, Hardware Issue, New Dataset, Other) — infer from context, do not ask directly\n"
+    + "- Request Description (brief description of the issue)\n"
+    + "- Urgency (Low, Medium, High, Urgent) — infer if possible, otherwise ask\n\n"
+    + "Once you have all fields, present a summary and ask the user to confirm by saying \"yes\".\n"
+    + "When the user confirms, respond ONLY with this JSON and nothing else — no extra text before or after:\n"
+    + "{\"submitted\":true,\"name\":\"VALUE\",\"email\":\"VALUE\",\"department\":\"VALUE\",\"requestType\":\"VALUE\",\"description\":\"VALUE\",\"urgency\":\"VALUE\"}";
+
+  var itChatHistory = [];
+  var itMessagesEl = null;
+  var itInputEl = null;
+  var itSendEl = null;
+  var itTypingRow = null;
+  var itFlowEl = document.getElementById('it-flow');
+  var IT_GREETING = "Hi! I'm the Takanock IT Help Desk assistant. Tell me what's going on — I'll gather the details and log a ticket for you. What issue are you running into?";
+
+  function itSubmitTicket(parsed) {
+    var record = {
+      name: parsed.name || '',
+      department: parsed.department || '',
+      requestType: parsed.requestType || '',
+      description: parsed.description || '',
+      urgency: parsed.urgency || ''
+    };
+
+    return fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ airtable_record: record, table: 'it' })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var reply;
+        if (data.error) {
+          reply = 'Sorry, something went wrong submitting your ticket. Please try again.';
+        } else {
+          var ref = 'TKN-IT-' + Math.floor(1000 + Math.random() * 9000);
+          reply = 'Your ticket has been submitted! Reference number: ' + ref + '. Jacob from IT will be in touch soon.';
+        }
+        itChatHistory.push({ role: 'assistant', content: reply });
+        makeBubble(itMessagesEl, 'assistant', reply);
+      })
+      .catch(function () {
+        makeBubble(itMessagesEl, 'assistant', 'Sorry, something went wrong submitting your ticket. Please try again.');
+      });
+  }
+
+  function itSendMessage() {
+    var text = itInputEl.value.trim();
+    if (!text) return;
+
+    makeBubble(itMessagesEl, 'user', text);
+    itChatHistory.push({ role: 'user', content: text });
+    itInputEl.value = '';
+    itInputEl.disabled = true;
+    itSendEl.disabled = true;
+    itTypingRow = makeTyping(itMessagesEl);
+
+    fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: itChatHistory,
+        system: IT_SYSTEM_PROMPT,
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000
+      })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        removeTyping(itTypingRow);
+        var replyText = extractReplyText(data);
+
+        var parsed = null;
+        try { parsed = JSON.parse(replyText.trim()); } catch (e) { /* not the final JSON — a normal chat reply */ }
+
+        if (parsed && parsed.submitted === true) {
+          return itSubmitTicket(parsed);
+        }
+
+        itChatHistory.push({ role: 'assistant', content: replyText });
+        makeBubble(itMessagesEl, 'assistant', replyText);
+      })
+      .catch(function () {
+        removeTyping(itTypingRow);
+        makeBubble(itMessagesEl, 'assistant', 'Connection error — please try again.');
+      })
+      .then(function () {
+        itInputEl.disabled = false;
+        itSendEl.disabled = false;
+        itInputEl.focus();
+      });
+  }
+
+  function itResetChat() {
+    itChatHistory = [];
+    itMessagesEl.innerHTML = '';
+    makeBubble(itMessagesEl, 'assistant', IT_GREETING);
+  }
+
+  function renderItIntake() {
+    requestForm.style.display = 'none';
+    gisFlowEl.style.display = 'none';
+    showBanner('request-banner', null);
+    itFlowEl.style.display = 'block';
+
+    if (itFlowEl.dataset.built) return;
+    itFlowEl.dataset.built = '1';
+
+    itFlowEl.innerHTML =
+      '<div class="chat-container" style="height:480px;">' +
+        '<div class="chat-header"><h1>IT Help Desk</h1><p>Tell me what\'s going on — I\'ll gather the details and log a ticket for you.</p></div>' +
+        '<div class="chat-messages" id="it-messages"></div>' +
+        '<div class="chat-input-row">' +
+          '<input type="text" id="it-input" class="chat-input" placeholder="Type a message..." autocomplete="off" />' +
+          '<button id="it-send" class="send-btn">Send</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="text-align:center; margin-top:16px;">' +
+        '<button type="button" id="it-new-btn" class="action-btn">New Request</button>' +
+      '</div>';
+
+    itMessagesEl = document.getElementById('it-messages');
+    itInputEl = document.getElementById('it-input');
+    itSendEl = document.getElementById('it-send');
+
+    itSendEl.addEventListener('click', itSendMessage);
+    itInputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') itSendMessage(); });
+    document.getElementById('it-new-btn').addEventListener('click', itResetChat);
+
+    makeBubble(itMessagesEl, 'assistant', IT_GREETING);
+  }
 
   /* ---------------------------------------------------------------
    * GIS Request: hybrid chat intake
@@ -735,7 +873,7 @@
    * ------------------------------------------------------------- */
   var GIS_SYSTEM_PROMPT = "You are a focused intake assistant collecting a GIS request for Jacob Paul's team at Takanock. "
     + "Have a natural conversation to gather: what they need (a new map, a new data source, presentation support, or something else), "
-    + "which project it relates to if any (e.g. Baccara, Tallmadge, Hale, Connemara, another, or none), "
+    + "which project it relates to if any (e.g. Baccara, Tallmadge, Hale, another, or none), "
     + "a clear and detailed description of the deliverable, whether they have a source file to hand off (e.g. a KMZ from a gas company), "
     + "and — only if this is presentation support — both the actual presentation date and a separate earlier 'finalize by' "
     + "deadline they need a reviewable draft by, since it's an iterative process. Ask one or two questions at a time, don't "
@@ -790,6 +928,7 @@
 
   function renderGisIntake(preserveBanner) {
     requestForm.style.display = 'none';
+    itFlowEl.style.display = 'none';
     if (!preserveBanner) showBanner('request-banner', null);
     gisFlowEl.style.display = 'block';
 
@@ -874,7 +1013,6 @@
     form.id = 'gis-confirm-form';
 
     addField(form, { id: 'gis-field-requesterName', name: 'requesterName', label: 'Your Name', type: 'text', required: true });
-    addField(form, { id: 'gis-field-requesterEmail', name: 'requesterEmail', label: 'Your Email', type: 'email', required: true });
     addField(form, { id: 'gis-field-project', name: 'project', label: 'Project', type: 'text', required: false, listId: 'gis-project-list' });
     addField(form, { id: 'gis-field-requestType', name: 'requestType', label: 'Request Type', type: 'select', options: ['New map', 'New data source', 'Presentation support', 'Other'], required: true });
     addField(form, { id: 'gis-field-description', name: 'description', label: 'Description', type: 'textarea', required: true });
@@ -988,6 +1126,8 @@
     gisFlowEl.dataset.built = '';
     renderGisIntake(true);
   }
+
+  showRequestType('it');
 
   /* ---------------------------------------------------------------
    * MODE 3: Check My Ticket
