@@ -224,6 +224,11 @@
     min-height: 90px;
     resize: vertical;
   }
+  .field input[type="checkbox"] {
+    width: auto;
+    padding: 0;
+    align-self: flex-start;
+  }
   .submit-btn {
     background: var(--orange);
     color: var(--white);
@@ -347,6 +352,7 @@
         <option value="legal">Legal Intake</option>
       </select>
       <form id="request-form"></form>
+      <div id="gis-flow" style="display:none;"></div>
     </div>
   </section>
 
@@ -404,65 +410,36 @@
   }
 
   /* ---------------------------------------------------------------
-   * MODE 1: Assistant chat
+   * Shared chat bubble / typing-indicator helpers
+   * (used by both the Assistant tab and the GIS intake chat — each
+   * keeps its own message container and history array)
    * ------------------------------------------------------------- */
-  var SYSTEM_PROMPT = "You are the Takanock Assistant, an internal tool for Takanock LLC employees. Takanock develops grid-connected power generation infrastructure for data centers. You can help employees with: answering general company questions, routing IT issues, logging automation ideas, finding the right person to contact, and answering questions about active projects (Baccara, Tallmadge, Connemara, Hale, Pacara, Glendale, Koneman). If someone describes an IT problem, offer to take them to the IT intake form. If someone has an automation idea, offer to take them to the automation intake form. Be concise and helpful. If you don't know something, say so honestly.";
-
-  var chatHistory = [];
-  var chatMessagesEl = document.getElementById('chat-messages');
-  var chatInputEl = document.getElementById('chat-input');
-  var chatSendEl = document.getElementById('chat-send');
-  var typingRow = null;
-
-  function renderBubble(role, text, actionType) {
+  function makeBubble(container, role, text) {
     var row = document.createElement('div');
     row.className = 'msg-row ' + role;
-
     var bubble = document.createElement('div');
     bubble.className = 'msg';
     bubble.textContent = text;
     row.appendChild(bubble);
-
-    if (actionType) {
-      var actions = document.createElement('div');
-      actions.className = 'msg-actions';
-      var btn = document.createElement('button');
-      btn.className = 'action-btn';
-      btn.textContent = actionType === 'automation' ? 'Open Automation Intake Form' : 'Open IT Intake Form';
-      btn.addEventListener('click', function () { openIntakeForm(actionType); });
-      actions.appendChild(btn);
-      row.appendChild(actions);
-    }
-
-    chatMessagesEl.appendChild(row);
-    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+    container.appendChild(row);
+    container.scrollTop = container.scrollHeight;
     return row;
   }
 
-  function showTyping() {
-    typingRow = document.createElement('div');
-    typingRow.className = 'msg-row assistant';
+  function makeTyping(container) {
+    var row = document.createElement('div');
+    row.className = 'msg-row assistant';
     var bubble = document.createElement('div');
     bubble.className = 'msg';
     bubble.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
-    typingRow.appendChild(bubble);
-    chatMessagesEl.appendChild(typingRow);
-    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+    row.appendChild(bubble);
+    container.appendChild(row);
+    container.scrollTop = container.scrollHeight;
+    return row;
   }
 
-  function hideTyping() {
-    if (typingRow && typingRow.parentNode) typingRow.parentNode.removeChild(typingRow);
-    typingRow = null;
-  }
-
-  // Heuristic keyword match against the assistant's reply text, since the
-  // system prompt instructs Claude to naturally offer the IT/automation
-  // form in its own words rather than emit a structured signal.
-  function detectFormAction(replyText) {
-    var lower = replyText.toLowerCase();
-    if (/automation (idea|intake)|automation form/.test(lower)) return 'automation';
-    if (/it intake|it help desk|it form/.test(lower)) return 'it';
-    return null;
+  function removeTyping(row) {
+    if (row && row.parentNode) row.parentNode.removeChild(row);
   }
 
   function extractReplyText(data) {
@@ -477,6 +454,54 @@
     if (data.reply) return data.reply;
     if (data.message) return data.message;
     return "I wasn't able to generate a response.";
+  }
+
+  /* ---------------------------------------------------------------
+   * MODE 1: Assistant chat
+   * ------------------------------------------------------------- */
+  var SYSTEM_PROMPT = "You are the Takanock Assistant, an internal tool for Takanock LLC employees. Takanock develops grid-connected power generation infrastructure for data centers. You can help employees with: answering general company questions, routing IT issues, logging automation ideas, finding the right person to contact, and answering questions about active projects (Baccara, Tallmadge, Connemara, Hale, Pacara, Glendale, Koneman). If someone describes an IT problem, offer to take them to the IT intake form. If someone has an automation idea, offer to take them to the automation intake form. Be concise and helpful. If you don't know something, say so honestly.";
+
+  var chatHistory = [];
+  var chatMessagesEl = document.getElementById('chat-messages');
+  var chatInputEl = document.getElementById('chat-input');
+  var chatSendEl = document.getElementById('chat-send');
+  var typingRow = null;
+
+  function renderBubble(role, text, actionType) {
+    var row = makeBubble(chatMessagesEl, role, text);
+
+    if (actionType) {
+      var actions = document.createElement('div');
+      actions.className = 'msg-actions';
+      var btn = document.createElement('button');
+      btn.className = 'action-btn';
+      btn.textContent = actionType === 'automation' ? 'Open Automation Intake Form' : 'Open IT Intake Form';
+      btn.addEventListener('click', function () { openIntakeForm(actionType); });
+      actions.appendChild(btn);
+      row.appendChild(actions);
+      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+    }
+
+    return row;
+  }
+
+  function showTyping() {
+    typingRow = makeTyping(chatMessagesEl);
+  }
+
+  function hideTyping() {
+    removeTyping(typingRow);
+    typingRow = null;
+  }
+
+  // Heuristic keyword match against the assistant's reply text, since the
+  // system prompt instructs Claude to naturally offer the IT/automation
+  // form in its own words rather than emit a structured signal.
+  function detectFormAction(replyText) {
+    var lower = replyText.toLowerCase();
+    if (/automation (idea|intake)|automation form/.test(lower)) return 'automation';
+    if (/it intake|it help desk|it form/.test(lower)) return 'it';
+    return null;
   }
 
   function setChatDisabled(disabled) {
@@ -540,15 +565,6 @@
         { name: 'urgency', label: 'Urgency', type: 'select', options: ['Low', 'Medium', 'High', 'Urgent'], required: true }
       ]
     },
-    gis: {
-      table: 'gis',
-      fields: [
-        { name: 'requestType', label: 'Request Type', type: 'select', options: ['Data Request', 'Map/Layer', 'Analysis', 'Site Assessment', 'Other'], required: true },
-        { name: 'project', label: 'Project', type: 'select', options: PROJECTS, required: true },
-        { name: 'description', label: 'Description', type: 'textarea', required: true },
-        { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Medium', 'High'], required: true }
-      ]
-    },
     automation: {
       table: 'automation',
       fields: [
@@ -577,9 +593,11 @@
     var wrap = document.createElement('div');
     wrap.className = 'field';
 
+    var fieldId = f.id || ('field-' + f.name);
+
     var label = document.createElement('label');
     label.textContent = f.label + (f.required ? ' *' : '');
-    label.htmlFor = 'field-' + f.name;
+    label.htmlFor = fieldId;
     wrap.appendChild(label);
 
     var input;
@@ -601,9 +619,10 @@
       input = document.createElement('input');
       input.type = f.type;
     }
-    input.id = 'field-' + f.name;
+    input.id = fieldId;
     input.name = f.name;
     if (f.required) input.required = true;
+    if (f.listId) input.setAttribute('list', f.listId);
     wrap.appendChild(input);
 
     form.appendChild(wrap);
@@ -611,6 +630,8 @@
 
   function renderRequestForm(type) {
     var cfg = FORM_CONFIGS[type];
+    document.getElementById('gis-flow').style.display = 'none';
+    requestForm.style.display = '';
     requestForm.innerHTML = '';
     requestForm.dataset.type = type;
     showBanner('request-banner', null);
@@ -627,8 +648,16 @@
     requestForm.appendChild(submitBtn);
   }
 
+  function showRequestType(type) {
+    if (type === 'gis') {
+      renderGisIntake();
+    } else {
+      renderRequestForm(type);
+    }
+  }
+
   requestTypeSelect.addEventListener('change', function () {
-    renderRequestForm(requestTypeSelect.value);
+    showRequestType(requestTypeSelect.value);
   });
 
   requestForm.addEventListener('submit', function (e) {
@@ -669,10 +698,273 @@
   function openIntakeForm(type) {
     switchView('request');
     requestTypeSelect.value = type;
-    renderRequestForm(type);
+    showRequestType(type);
   }
 
   renderRequestForm('it');
+
+  /* ---------------------------------------------------------------
+   * GIS Request: hybrid chat intake
+   * Chat gathers the request conversationally, an extraction call
+   * turns it into structured fields, then an editable confirm form
+   * (built with the same addField helper as the static forms) is the
+   * human checkpoint before anything is written to Airtable.
+   * ------------------------------------------------------------- */
+  var GIS_SYSTEM_PROMPT = "You are a focused intake assistant collecting a GIS request for Jacob Paul's team at Takanock. "
+    + "Have a natural conversation to gather: what they need (a new map, a new data source, presentation support, or something else), "
+    + "which project it relates to if any (e.g. Baccara, Tallmadge, Connemara, Hale, Pacara, Glendale, Koneman, another, or none), "
+    + "a clear and detailed description of the deliverable, whether they have a source file to hand off (e.g. a KMZ from a gas company), "
+    + "and — only if this is presentation support — both the actual presentation date and a separate earlier 'finalize by' "
+    + "deadline they need a reviewable draft by, since it's an iterative process. Ask one or two questions at a time, don't "
+    + "interrogate. Keep the description open-ended and detailed rather than steering to rigid categories. When you have enough "
+    + "to build a solid request, tell the user they can click 'Review My Request' below to see a summary.";
+
+  var gisChatHistory = [];
+  var gisMessagesEl = null;
+  var gisInputEl = null;
+  var gisSendEl = null;
+  var gisTypingRow = null;
+  var gisFlowEl = document.getElementById('gis-flow');
+
+  function gisSendMessage() {
+    var text = gisInputEl.value.trim();
+    if (!text) return;
+
+    makeBubble(gisMessagesEl, 'user', text);
+    gisChatHistory.push({ role: 'user', content: text });
+    gisInputEl.value = '';
+    gisInputEl.disabled = true;
+    gisSendEl.disabled = true;
+    gisTypingRow = makeTyping(gisMessagesEl);
+
+    fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: gisChatHistory,
+        system: GIS_SYSTEM_PROMPT,
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000
+      })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        removeTyping(gisTypingRow);
+        var replyText = extractReplyText(data);
+        gisChatHistory.push({ role: 'assistant', content: replyText });
+        makeBubble(gisMessagesEl, 'assistant', replyText);
+      })
+      .catch(function () {
+        removeTyping(gisTypingRow);
+        makeBubble(gisMessagesEl, 'assistant', 'Sorry, something went wrong. Please try again.');
+      })
+      .then(function () {
+        gisInputEl.disabled = false;
+        gisSendEl.disabled = false;
+        gisInputEl.focus();
+      });
+  }
+
+  function renderGisIntake(preserveBanner) {
+    requestForm.style.display = 'none';
+    if (!preserveBanner) showBanner('request-banner', null);
+    gisFlowEl.style.display = 'block';
+
+    if (gisFlowEl.dataset.built) return;
+    gisFlowEl.dataset.built = '1';
+
+    gisFlowEl.innerHTML =
+      '<div class="chat-container" style="height:480px;">' +
+        '<div class="chat-header"><h1>GIS Request</h1><p>Tell me what you need — I\'ll help pull together the details for Jacob\'s team.</p></div>' +
+        '<div class="chat-messages" id="gis-messages"></div>' +
+        '<div class="chat-input-row">' +
+          '<input type="text" id="gis-input" class="chat-input" placeholder="Type a message..." autocomplete="off" />' +
+          '<button id="gis-send" class="send-btn">Send</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="text-align:center; margin-top:16px;">' +
+        '<button type="button" id="gis-review-btn" class="action-btn">Review My Request</button>' +
+      '</div>' +
+      '<div id="gis-confirm-wrap"></div>';
+
+    gisMessagesEl = document.getElementById('gis-messages');
+    gisInputEl = document.getElementById('gis-input');
+    gisSendEl = document.getElementById('gis-send');
+
+    gisSendEl.addEventListener('click', gisSendMessage);
+    gisInputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') gisSendMessage(); });
+    document.getElementById('gis-review-btn').addEventListener('click', gisStartReview);
+
+    makeBubble(gisMessagesEl, 'assistant', "Hi! Let's get your GIS request sorted. What do you need — a new map, a new data source, help with a presentation, or something else?");
+  }
+
+  function gisStartReview() {
+    if (!gisChatHistory.length) {
+      showBanner('request-banner', 'error', 'Tell me a bit about your request in the chat above first, then click Review My Request.');
+      return;
+    }
+
+    var reviewBtn = document.getElementById('gis-review-btn');
+    reviewBtn.disabled = true;
+    reviewBtn.textContent = 'Reviewing...';
+    showBanner('request-banner', null);
+
+    fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ extract_gis_request: { messages: gisChatHistory } })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          showBanner('request-banner', 'error', 'Could not summarize your request yet — try adding a bit more detail in chat.');
+          return;
+        }
+        if (data.incomplete) {
+          showBanner('request-banner', 'error', "I need a bit more detail before building your request — tell me more about what you need in the chat above, then click Review again.");
+          return;
+        }
+        renderGisConfirmForm(data.fields || {});
+      })
+      .catch(function () {
+        showBanner('request-banner', 'error', 'Something went wrong reviewing your request. Please try again.');
+      })
+      .then(function () {
+        reviewBtn.disabled = false;
+        reviewBtn.textContent = 'Review My Request';
+      });
+  }
+
+  function gisUpdatePresentationVisibility(form) {
+    var isPresentation = form.elements['requestType'].value === 'Presentation support';
+    ['presentationLink', 'presentationDate'].forEach(function (name) {
+      var wrap = form.elements[name].closest('.field');
+      if (wrap) wrap.style.display = isPresentation ? '' : 'none';
+    });
+  }
+
+  function renderGisConfirmForm(fields) {
+    var wrap = document.getElementById('gis-confirm-wrap');
+    wrap.innerHTML = '<h2 style="font-size:15px;margin:24px 0 12px;">Review your request</h2>';
+
+    var form = document.createElement('form');
+    form.id = 'gis-confirm-form';
+
+    addField(form, { id: 'gis-field-requesterName', name: 'requesterName', label: 'Your Name', type: 'text', required: true });
+    addField(form, { id: 'gis-field-requesterEmail', name: 'requesterEmail', label: 'Your Email', type: 'email', required: true });
+    addField(form, { id: 'gis-field-project', name: 'project', label: 'Project', type: 'text', required: false, listId: 'gis-project-list' });
+    addField(form, { id: 'gis-field-requestType', name: 'requestType', label: 'Request Type', type: 'select', options: ['New map', 'New data source', 'Presentation support', 'Other'], required: true });
+    addField(form, { id: 'gis-field-description', name: 'description', label: 'Description', type: 'textarea', required: true });
+    addField(form, { id: 'gis-field-newDataSourceNeeded', name: 'newDataSourceNeeded', label: 'New data source needed?', type: 'checkbox', required: false });
+    addField(form, { id: 'gis-field-presentationLink', name: 'presentationLink', label: 'Presentation Link (if applicable)', type: 'url', required: false });
+    addField(form, { id: 'gis-field-presentationDate', name: 'presentationDate', label: 'Presentation Date (if applicable)', type: 'date', required: false });
+    addField(form, { id: 'gis-field-finalizeByDate', name: 'finalizeByDate', label: 'Finalize By (deadline for draft/deliverable)', type: 'date', required: false });
+    addField(form, { id: 'gis-field-priority', name: 'priority', label: 'Priority', type: 'select', options: ['High', 'Medium', 'Low'], required: false });
+    addField(form, { id: 'gis-field-attachment', name: 'attachment', label: 'Attach a source file (optional)', type: 'file', required: false });
+
+    Object.keys(fields).forEach(function (k) {
+      var el = form.elements[k];
+      if (!el) return;
+      if (el.type === 'checkbox') el.checked = !!fields[k];
+      else el.value = fields[k];
+    });
+
+    var datalist = document.createElement('datalist');
+    datalist.id = 'gis-project-list';
+    PROJECTS.filter(function (p) { return p !== 'Other'; }).forEach(function (p) {
+      var opt = document.createElement('option');
+      opt.value = p;
+      datalist.appendChild(opt);
+    });
+    form.appendChild(datalist);
+
+    var submitBtn = document.createElement('button');
+    submitBtn.type = 'submit';
+    submitBtn.className = 'submit-btn';
+    submitBtn.textContent = 'Submit Request';
+    form.appendChild(submitBtn);
+
+    form.addEventListener('submit', gisSubmitConfirmForm);
+    form.elements['requestType'].addEventListener('change', function () { gisUpdatePresentationVisibility(form); });
+
+    wrap.appendChild(form);
+    gisUpdatePresentationVisibility(form);
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function gisSubmitConfirmForm(e) {
+    e.preventDefault();
+    var form = e.target;
+    var record = {};
+    new FormData(form).forEach(function (v, k) { if (k !== 'attachment') record[k] = v; });
+    record.newDataSourceNeeded = form.elements['newDataSourceNeeded'].checked;
+
+    var fileInput = form.elements['attachment'];
+    var file = (fileInput.files && fileInput.files[0]) || null;
+
+    var btn = form.querySelector('.submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+    showBanner('request-banner', null);
+
+    fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ airtable_record: record, table: 'gis' })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          showBanner('request-banner', 'error', typeof data.error === 'string' ? data.error : (data.error.message || 'Unable to submit your request. Please try again.'));
+          btn.disabled = false;
+          btn.textContent = 'Submit Request';
+          return;
+        }
+
+        var recordId = data.id;
+        if (!file) {
+          gisFinishSubmit(recordId, null);
+          return;
+        }
+
+        var reader = new FileReader();
+        reader.onload = function () {
+          var base64 = String(reader.result).split(',')[1] || '';
+          fetch('/api/proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              upload_gis_attachment: {
+                recordId: recordId,
+                filename: file.name,
+                contentType: file.type || 'application/octet-stream',
+                base64Content: base64
+              }
+            })
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (uploadData) { gisFinishSubmit(recordId, uploadData); })
+            .catch(function () { gisFinishSubmit(recordId, { warning: 'attachment_upload_failed' }); });
+        };
+        reader.readAsDataURL(file);
+      })
+      .catch(function () {
+        showBanner('request-banner', 'error', 'Unable to submit your request. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Submit Request';
+      });
+  }
+
+  function gisFinishSubmit(recordId, uploadResult) {
+    if (uploadResult && uploadResult.warning) {
+      showBanner('request-banner', 'error', 'Your request has been submitted — ticket ID ' + recordId + ' — but the file attachment failed to upload. Please send it to Jacob directly.');
+    } else {
+      showBanner('request-banner', 'success', 'Your GIS request has been submitted. Your ticket ID is ' + recordId + '.');
+    }
+    gisChatHistory = [];
+    gisFlowEl.dataset.built = '';
+    renderGisIntake(true);
+  }
 
   /* ---------------------------------------------------------------
    * MODE 3: Check My Ticket

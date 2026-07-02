@@ -4,6 +4,12 @@
 const IT_BASE = 'appvNDBoDDGFshd5J';
 const IT_TABLE = 'tblVudrEioL0al0co';
 
+const GIS_BASE = 'appvNDBoDDGFshd5J';
+const GIS_TABLE = 'tbliYJrSDnWSipK0Z';
+
+const GIS_REQUEST_TYPES = ['New map', 'New data source', 'Presentation support', 'Other'];
+const GIS_PRIORITIES = ['High', 'Medium', 'Low'];
+
 const AUTOMATION_BASE = 'appPZMqespKQVOfxo';
 const AUTOMATION_TABLE = 'tblfqTJvzI7IW7OiN';
 
@@ -44,6 +50,12 @@ module.exports = async function handler(req, res) {
     }
     if (body.airtable_record && body.table) {
       return await handleSubmit(body.airtable_record, body.table, res);
+    }
+    if (body.extract_gis_request) {
+      return await handleExtractGisRequest(body.extract_gis_request, res);
+    }
+    if (body.upload_gis_attachment) {
+      return await handleUploadGisAttachment(body.upload_gis_attachment, res);
     }
     if (body.messages) {
       return await handleChat(body, res);
@@ -128,10 +140,33 @@ async function handleSubmit(record, table, res) {
     return res.status(200).json({ id: data.id });
   }
 
-  if (table === 'gis' || table === 'legal') {
-    // GIS/Legal share the IT table for now; prefix the request type so it can be filtered later.
-    const prefix = table === 'gis' ? 'GIS' : 'Legal';
-    const requestType = `${prefix} - ${record.requestType || 'Other'}`;
+  if (table === 'gis') {
+    const fields = {
+      'Requester Name': name,
+      'Requester Email': email,
+      'Project': record.project || '',
+      'Request Type': GIS_REQUEST_TYPES.includes(record.requestType) ? record.requestType : 'Other',
+      'Description': record.description || ''
+    };
+
+    if (record.newDataSourceNeeded === true || record.newDataSourceNeeded === 'true' || record.newDataSourceNeeded === 'on') {
+      fields['New Data Source Needed'] = true;
+    }
+    if (fields['Request Type'] === 'Presentation support') {
+      if (record.presentationLink) fields['Presentation Link'] = record.presentationLink;
+      if (record.presentationDate) fields['Presentation Date'] = record.presentationDate;
+    }
+    if (record.finalizeByDate) fields['Finalize By Date'] = record.finalizeByDate;
+    if (record.priority && GIS_PRIORITIES.includes(record.priority)) fields['Priority'] = record.priority;
+    // Status / Deliverable Link / Deliverable File / Completed At are system-managed — never set from submitter input.
+
+    const data = await airtableCreate(GIS_BASE, GIS_TABLE, fields);
+    return res.status(200).json({ id: data.id });
+  }
+
+  if (table === 'legal') {
+    // Legal still shares the IT table shim for now; prefix the request type so it can be filtered later.
+    const requestType = `Legal - ${record.requestType || 'Other'}`;
     const urgency = record.urgency || record.priority || '';
     let description = record.description || '';
     if (record.project) description = `[Project: ${record.project}] ${description}`;
@@ -155,16 +190,122 @@ async function handleSubmit(record, table, res) {
 }
 
 /* -----------------------------------------------------------------
+ * GIS hybrid intake: chat -> extract -> confirm
+ * --------------------------------------------------------------- */
+
+const GIS_EXTRACTION_TOOL = {
+  name: 'submit_gis_request_fields',
+  description: 'Extract structured GIS request fields from the conversation so far. Only include fields the user has actually stated or clearly implied; leave a field blank/omitted rather than guessing.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      requesterName: { type: 'string', description: 'Requester full name, if stated (blank if not yet given).' },
+      project: { type: 'string', description: 'Free-text project name/context this request relates to, if any (e.g. Baccara, Tallmadge, or something not on the known list, or blank).' },
+      requestType: { type: 'string', enum: GIS_REQUEST_TYPES },
+      description: { type: 'string', description: 'A clear, complete summary of what the requester needs, written in full sentences — this is the primary field Jacob will read.' },
+      newDataSourceNeeded: { type: 'boolean', description: 'True only if the conversation indicates a new external data source (e.g. a KMZ from a gas company) needs to be incorporated.' },
+      presentationLink: { type: 'string', description: 'Link related to an existing/draft presentation, only if requestType is "Presentation support" and a link was mentioned.' },
+      presentationDate: { type: 'string', description: 'ISO date (YYYY-MM-DD) of the actual presentation, only if requestType is "Presentation support" and a date was mentioned.' },
+      finalizeByDate: { type: 'string', description: 'ISO date (YYYY-MM-DD) the requester needs the finished deliverable by, if mentioned.' },
+      priority: { type: 'string', enum: GIS_PRIORITIES }
+    },
+    required: ['description']
+  }
+};
+
+async function handleExtractGisRequest(payload, res) {
+  const messages = (payload.messages || []).map((m) => ({ role: m.role, content: m.content }));
+  if (!messages.length) {
+    return res.status(200).json({ fields: {}, incomplete: true, missingFields: ['description'] });
+  }
+
+  const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      system: 'You extract structured GIS request data from a conversation between a GIS intake assistant and a Takanock employee. Call submit_gis_request_fields exactly once with the best available values. Leave a field blank/omitted rather than guessing if it was never discussed.',
+      messages,
+      tools: [GIS_EXTRACTION_TOOL],
+      tool_choice: { type: 'tool', name: 'submit_gis_request_fields' }
+    })
+  });
+
+  const data = await anthropicRes.json();
+  if (!anthropicRes.ok) {
+    return res.status(anthropicRes.status).json({ error: data.error || data });
+  }
+
+  const toolUse = (data.content || []).find((c) => c.type === 'tool_use' && c.name === 'submit_gis_request_fields');
+  if (!toolUse) {
+    return res.status(200).json({ fields: {}, incomplete: true, missingFields: ['description'] });
+  }
+
+  const fields = toolUse.input || {};
+
+  // Server-side validation — never trust the model's enum/free-text output blindly.
+  if (!GIS_REQUEST_TYPES.includes(fields.requestType)) fields.requestType = 'Other';
+  if (fields.priority && !GIS_PRIORITIES.includes(fields.priority)) fields.priority = '';
+  if (fields.requestType !== 'Presentation support') {
+    delete fields.presentationLink;
+    delete fields.presentationDate;
+  }
+
+  const missingDescription = !fields.description || !String(fields.description).trim();
+
+  return res.status(200).json({
+    fields,
+    incomplete: missingDescription,
+    missingFields: missingDescription ? ['description'] : []
+  });
+}
+
+async function handleUploadGisAttachment(payload, res) {
+  const { recordId, filename, contentType, base64Content } = payload;
+  if (!recordId || !base64Content) {
+    return res.status(400).json({ error: 'recordId and base64Content are required' });
+  }
+
+  const url = `https://api.airtable.com/v0/${GIS_BASE}/${GIS_TABLE}/${recordId}/${encodeURIComponent('Uploaded File')}/uploadAttachment`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contentType: contentType || 'application/octet-stream',
+      filename: filename || 'upload',
+      file: base64Content
+    })
+  });
+
+  const data = await r.json();
+  if (!r.ok) {
+    // Non-fatal from the client's perspective — the GIS record already exists.
+    return res.status(200).json({ warning: 'attachment_upload_failed', detail: (data.error && data.error.message) || 'Upload failed' });
+  }
+  return res.status(200).json({ ok: true, attachment: data });
+}
+
+/* -----------------------------------------------------------------
  * Ticket lookup
  * --------------------------------------------------------------- */
 
 async function handleLookup(email, res) {
   const safeEmail = String(email).replace(/"/g, '\\"');
-  const formula = `LOWER({Submitter Email})=LOWER("${safeEmail}")`;
+  const itFormula = `LOWER({Submitter Email})=LOWER("${safeEmail}")`;
+  const gisFormula = `LOWER({Requester Email})=LOWER("${safeEmail}")`;
 
-  const [itRecords, autoRecords] = await Promise.all([
-    airtableList(IT_BASE, IT_TABLE, formula, AIRTABLE_API_KEY),
-    airtableList(AUTOMATION_BASE, AUTOMATION_TABLE, formula, AIRTABLE_API_KEY)
+  const [itRecords, autoRecords, gisRecords] = await Promise.all([
+    airtableList(IT_BASE, IT_TABLE, itFormula, AIRTABLE_API_KEY),
+    airtableList(AUTOMATION_BASE, AUTOMATION_TABLE, itFormula, AIRTABLE_API_KEY),
+    airtableList(GIS_BASE, GIS_TABLE, gisFormula, AIRTABLE_API_KEY)
   ]);
 
   const tickets = itRecords.map((r) => ({
@@ -176,6 +317,11 @@ async function handleLookup(email, res) {
     requestType: `Automation - ${r.fields['Title'] || 'Untitled'}`,
     status: r.fields['Status'] || 'New',
     submittedAt: r.fields['Submitted Date'] || '',
+    description: r.fields['Description'] || ''
+  }))).concat(gisRecords.map((r) => ({
+    requestType: `GIS - ${r.fields['Request Type'] || 'Other'}`,
+    status: r.fields['Status'] || 'New',
+    submittedAt: r.fields['Created At'] || '',
     description: r.fields['Description'] || ''
   })));
 
