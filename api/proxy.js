@@ -5,6 +5,7 @@ const IT_BASE = 'appvNDBoDDGFshd5J';
 const IT_TABLE = 'tblVudrEioL0al0co';
 
 const IT_DEPARTMENTS = ['Finance', 'Development', 'Engineering', 'Operations', 'GIS', 'Executive', 'Other'];
+const IT_REQUEST_TYPES = ['Permissions Issue', 'Slack', 'Sharepoint', 'Hardware Issue', 'New Dataset', 'Other'];
 const IT_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
 
 const GIS_BASE = 'appvNDBoDDGFshd5J';
@@ -127,9 +128,7 @@ async function handleSubmit(record, table, res) {
       'Submitter Name': name,
       'Submitter Email': deriveEmail(name),
       'Department': IT_DEPARTMENTS.includes(department) ? department : 'Other',
-      // Request Type omitted for now — the values being generated don't line up
-      // with Airtable's exact select options; left to default empty rather
-      // than fail the write until the field mapping is fixed separately.
+      'Request Type': IT_REQUEST_TYPES.includes(record.requestType) ? record.requestType : 'Other',
       'Request Description': record.description || '',
       'Urgency': IT_URGENCIES.includes(record.urgency) ? record.urgency : 'Medium',
       'Input Channel': 'Web App',
