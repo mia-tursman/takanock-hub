@@ -129,6 +129,13 @@
     color: var(--navy);
     border-bottom-left-radius: 3px;
   }
+  .msg code {
+    background: rgba(0,0,0,0.08);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.9em;
+  }
   .msg-actions { margin-top: 8px; }
   .action-btn {
     background: var(--orange);
@@ -414,12 +421,28 @@
    * (used by both the Assistant tab and the GIS intake chat — each
    * keeps its own message container and history array)
    * ------------------------------------------------------------- */
+  // Escape first so raw text can never be interpreted as HTML, then apply a
+  // small set of markdown conversions on top of the escaped text.
+  function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function renderMarkdownLite(text) {
+    var html = escapeHtml(text);
+    html = html.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*([^*]+?)\*/g, '<em>$1</em>');
+    html = html.replace(/`([^`]+?)`/g, '<code>$1</code>');
+    return html;
+  }
+
   function makeBubble(container, role, text) {
     var row = document.createElement('div');
     row.className = 'msg-row ' + role;
     var bubble = document.createElement('div');
     bubble.className = 'msg';
-    bubble.textContent = text;
+    bubble.innerHTML = renderMarkdownLite(text);
     row.appendChild(bubble);
     container.appendChild(row);
     container.scrollTop = container.scrollHeight;
@@ -459,7 +482,7 @@
   /* ---------------------------------------------------------------
    * MODE 1: Assistant chat
    * ------------------------------------------------------------- */
-  var SYSTEM_PROMPT = "You are the Takanock Assistant, an internal tool for Takanock LLC employees. Takanock develops grid-connected power generation infrastructure for data centers. You can help employees with: answering general company questions, routing IT issues, logging automation ideas, finding the right person to contact, and answering questions about active projects (Baccara, Tallmadge, Connemara, Hale, Pacara, Glendale, Koneman). If someone describes an IT problem, offer to take them to the IT intake form. If someone has an automation idea, offer to take them to the automation intake form. Be concise and helpful. If you don't know something, say so honestly.";
+  var SYSTEM_PROMPT = "You are the Takanock Assistant, an internal tool for Takanock LLC employees. Takanock develops grid-connected power generation infrastructure for data centers. You can help employees with: answering general company questions, routing IT issues, logging automation ideas, finding the right person to contact, and answering questions about active projects (Baccara, Tallmadge, Hale, Connemara). If someone describes an IT problem, offer to take them to the IT intake form. If someone has an automation idea, offer to take them to the automation intake form. Be concise and helpful. If you don't know something, say so honestly.";
 
   var chatHistory = [];
   var chatMessagesEl = document.getElementById('chat-messages');
@@ -554,7 +577,7 @@
    * MODE 2: Submit a Request
    * ------------------------------------------------------------- */
   var DEPARTMENTS = ['Development', 'GIS', 'Finance', 'Legal', 'HR', 'Commercial', 'Engineering', 'Operations', 'Other'];
-  var PROJECTS = ['Baccara', 'Tallmadge', 'Connemara', 'Hale', 'Pacara', 'Glendale', 'Koneman', 'Other'];
+  var PROJECTS = ['Baccara', 'Tallmadge', 'Hale', 'Connemara', 'Other'];
 
   var FORM_CONFIGS = {
     it: {
@@ -712,7 +735,7 @@
    * ------------------------------------------------------------- */
   var GIS_SYSTEM_PROMPT = "You are a focused intake assistant collecting a GIS request for Jacob Paul's team at Takanock. "
     + "Have a natural conversation to gather: what they need (a new map, a new data source, presentation support, or something else), "
-    + "which project it relates to if any (e.g. Baccara, Tallmadge, Connemara, Hale, Pacara, Glendale, Koneman, another, or none), "
+    + "which project it relates to if any (e.g. Baccara, Tallmadge, Hale, Connemara, another, or none), "
     + "a clear and detailed description of the deliverable, whether they have a source file to hand off (e.g. a KMZ from a gas company), "
     + "and — only if this is presentation support — both the actual presentation date and a separate earlier 'finalize by' "
     + "deadline they need a reviewable draft by, since it's an iterative process. Ask one or two questions at a time, don't "

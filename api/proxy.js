@@ -16,7 +16,7 @@ const AUTOMATION_TABLE = 'tblfqTJvzI7IW7OiN';
 const PROJECT_BASE = 'app8TcmAlSOb6rkYx';
 const PROJECT_TABLE = 'tbl9pfOnrPMRccTPn';
 
-const PROJECT_NAMES = ['Baccara', 'Tallmadge', 'Connemara', 'Hale', 'Pacara', 'Glendale', 'Koneman'];
+const PROJECT_NAMES = ['Baccara', 'Tallmadge', 'Hale', 'Connemara'];
 const PROJECT_TRIGGER_KEYWORDS = ['baccara', 'tallmadge', 'hale', 'connemara', 'project', 'status', 'stage', 'phase'];
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
