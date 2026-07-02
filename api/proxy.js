@@ -5,7 +5,6 @@ const IT_BASE = 'appvNDBoDDGFshd5J';
 const IT_TABLE = 'tblVudrEioL0al0co';
 
 const IT_DEPARTMENTS = ['Finance', 'Development', 'Engineering', 'Operations', 'GIS', 'Executive', 'Other'];
-const IT_REQUEST_TYPES = ['Permissions Issue', 'New SharePoint Site', 'Hardware Issue', 'New Dataset', 'Other'];
 const IT_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
 
 const GIS_BASE = 'appvNDBoDDGFshd5J';
@@ -128,10 +127,12 @@ async function handleSubmit(record, table, res) {
       'Submitter Name': name,
       'Submitter Email': deriveEmail(name),
       'Department': IT_DEPARTMENTS.includes(department) ? department : 'Other',
-      'Request Type': IT_REQUEST_TYPES.includes(record.requestType) ? record.requestType : 'Other',
+      // Request Type omitted for now — the values being generated don't line up
+      // with Airtable's exact select options; left to default empty rather
+      // than fail the write until the field mapping is fixed separately.
       'Request Description': record.description || '',
       'Urgency': IT_URGENCIES.includes(record.urgency) ? record.urgency : 'Medium',
-      'Input Channel': 'Hub',
+      'Input Channel': 'Web App',
       'Status': 'New',
       'Submitted At': now
     };
@@ -181,8 +182,7 @@ async function handleSubmit(record, table, res) {
   }
 
   if (table === 'legal') {
-    // Legal still shares the IT table shim for now; prefix the request type so it can be filtered later.
-    const requestType = `Legal - ${record.requestType || 'Other'}`;
+    // Legal still shares the IT table shim for now.
     const urgency = record.urgency || record.priority || '';
     let description = record.description || '';
     if (record.project) description = `[Project: ${record.project}] ${description}`;
@@ -191,10 +191,12 @@ async function handleSubmit(record, table, res) {
       'Submitter Name': name,
       'Submitter Email': deriveEmail(name),
       'Department': department,
-      'Request Type': requestType,
+      // Request Type omitted for now — "Legal - X" values don't match Airtable's
+      // exact select options; left to default empty rather than fail the write
+      // until the field mapping is fixed separately.
       'Request Description': description,
       'Urgency': urgency,
-      'Input Channel': 'Hub',
+      'Input Channel': 'Web App',
       'Status': 'New',
       'Submitted At': now
     };
@@ -315,13 +317,19 @@ async function handleUploadGisAttachment(payload, res) {
 
 async function handleLookup(email, res) {
   const safeEmail = String(email).replace(/"/g, '\\"');
-  const itFormula = `LOWER({Submitter Email})=LOWER("${safeEmail}")`;
-  const gisFormula = `LOWER({Requester Email})=LOWER("${safeEmail}")`;
+  const formula = `AND(LOWER({Submitter Email})=LOWER("${safeEmail}"), NOT({Status}="Closed"), NOT({Status}="Resolved"))`;
 
-  const [itRecords, autoRecords, gisRecords] = await Promise.all([
-    airtableList(IT_BASE, IT_TABLE, itFormula, AIRTABLE_API_KEY),
-    airtableList(AUTOMATION_BASE, AUTOMATION_TABLE, itFormula, AIRTABLE_API_KEY),
-    airtableList(GIS_BASE, GIS_TABLE, gisFormula, AIRTABLE_API_KEY)
+  // Each base is queried independently and fails silently on its own — a
+  // permissions error on one base should never block results from the other.
+  const [itRecords, autoRecords] = await Promise.all([
+    airtableList(IT_BASE, IT_TABLE, formula, AIRTABLE_API_KEY).catch((err) => {
+      console.error('IT lookup failed:', err.message);
+      return [];
+    }),
+    airtableList(AUTOMATION_BASE, AUTOMATION_TABLE, formula, AIRTABLE_API_KEY).catch((err) => {
+      console.error('Automation lookup failed:', err.message);
+      return [];
+    })
   ]);
 
   const tickets = itRecords.map((r) => ({
@@ -333,11 +341,6 @@ async function handleLookup(email, res) {
     requestType: `Automation - ${r.fields['Title'] || 'Untitled'}`,
     status: r.fields['Status'] || 'New',
     submittedAt: r.fields['Submitted Date'] || '',
-    description: r.fields['Description'] || ''
-  }))).concat(gisRecords.map((r) => ({
-    requestType: `GIS - ${r.fields['Request Type'] || 'Other'}`,
-    status: r.fields['Status'] || 'New',
-    submittedAt: r.fields['Created At'] || '',
     description: r.fields['Description'] || ''
   })));
 
