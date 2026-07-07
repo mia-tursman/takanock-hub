@@ -1,27 +1,32 @@
 // Vercel serverless function — single proxy endpoint for the Takanock Assistant Hub.
 // Routes: chat (Anthropic), request submission (Airtable write), ticket lookup (Airtable read).
+//
+// Required environment variables:
+//   ANTHROPIC_API_KEY        — Anthropic API key for chat/extraction/summarization
+//   AIRTABLE_API_KEY         — Airtable token used for all writes and IT/GIS/Automation reads
+//   AIRTABLE_DEV_READ_TOKEN  — Airtable token used for the project tracker read
+//   AIRTABLE_HUB_BASE        — base ID shared by the IT, GIS, and Automation tables
+//   AIRTABLE_IT_TABLE        — IT Help Desk table ID
+//   AIRTABLE_GIS_TABLE       — GIS Request table ID
+//   AIRTABLE_AUTO_TABLE      — Automation Request table ID
 
-const IT_BASE = 'appvNDBoDDGFshd5J';
-const IT_TABLE = 'tblVudrEioL0al0co';
+const BASE = process.env.AIRTABLE_HUB_BASE;
+const IT_TABLE = process.env.AIRTABLE_IT_TABLE;
+const GIS_TABLE = process.env.AIRTABLE_GIS_TABLE;
+const AUTO_TABLE = process.env.AIRTABLE_AUTO_TABLE;
 
 const IT_DEPARTMENTS = ['Finance', 'Development', 'Engineering', 'Operations', 'GIS', 'Executive', 'Other'];
 const IT_REQUEST_TYPES = ['Permissions Issue', 'Slack', 'Sharepoint', 'Hardware Issue', 'New Dataset', 'Other'];
 const IT_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
 
-const GIS_BASE = 'appvNDBoDDGFshd5J';
-const GIS_TABLE = 'tbliYJrSDnWSipK0Z';
-
 const GIS_REQUEST_TYPES = ['New map', 'New data source', 'Presentation support', 'Other'];
 const GIS_PRIORITIES = ['High', 'Medium', 'Low'];
-
-const AUTOMATION_BASE = 'appPZMqespKQVOfxo';
-const AUTOMATION_TABLE = 'tblfqTJvzI7IW7OiN';
 
 const PROJECT_BASE = 'app8TcmAlSOb6rkYx';
 const PROJECT_TABLE = 'tbl9pfOnrPMRccTPn';
 
-const PROJECT_NAMES = ['Baccara', 'Tallmadge', 'Hale'];
-const PROJECT_TRIGGER_KEYWORDS = ['baccara', 'tallmadge', 'hale', 'project', 'status', 'stage', 'phase'];
+const PROJECT_NAMES = ['Baccara', 'Tallmadge', 'Hale', 'Connemara'];
+const PROJECT_TRIGGER_KEYWORDS = ['baccara', 'tallmadge', 'hale', 'connemara', 'project', 'status', 'phase', 'timeline', 'schedule', 'milestone'];
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_DEV_READ_TOKEN = process.env.AIRTABLE_DEV_READ_TOKEN;
@@ -135,7 +140,34 @@ async function handleSubmit(record, table, res) {
       'Status': 'New',
       'Submitted At': now
     };
-    const data = await airtableCreate(IT_BASE, IT_TABLE, fields);
+    const data = await airtableCreate(BASE, IT_TABLE, fields);
+    return res.status(200).json({ id: data.id });
+  }
+
+  if (table === 'gis') {
+    const requesterName = record.requesterName || '';
+    const fields = {
+      'Requester Name': requesterName,
+      'Requester Email': deriveEmail(requesterName),
+      'Project': record.project || '',
+      'Request Type': GIS_REQUEST_TYPES.includes(record.requestType) ? record.requestType : 'Other',
+      'Description': record.description || '',
+      'Status': 'New',
+      'Created At': now
+    };
+
+    if (record.newDataSourceNeeded === true || record.newDataSourceNeeded === 'true' || record.newDataSourceNeeded === 'on') {
+      fields['New Data Source Needed'] = true;
+    }
+    if (fields['Request Type'] === 'Presentation support') {
+      if (record.presentationLink) fields['Presentation Link'] = record.presentationLink;
+      if (record.presentationDate) fields['Presentation Date'] = record.presentationDate;
+    }
+    if (record.finalizeByDate) fields['Finalize By Date'] = record.finalizeByDate;
+    if (record.priority && GIS_PRIORITIES.includes(record.priority)) fields['Priority'] = record.priority;
+    // Deliverable Link / Deliverable File / Completed At are system-managed — never set from submitter input.
+
+    const data = await airtableCreate(BASE, GIS_TABLE, fields);
     return res.status(200).json({ id: data.id });
   }
 
@@ -151,55 +183,7 @@ async function handleSubmit(record, table, res) {
       'Submitter Priority': record.priority || '',
       'Submitted Date': now.slice(0, 10)
     };
-    const data = await airtableCreate(AUTOMATION_BASE, AUTOMATION_TABLE, fields);
-    return res.status(200).json({ id: data.id });
-  }
-
-  if (table === 'gis') {
-    const requesterName = record.requesterName || '';
-    const fields = {
-      'Requester Name': requesterName,
-      'Requester Email': deriveEmail(requesterName),
-      'Project': record.project || '',
-      'Request Type': GIS_REQUEST_TYPES.includes(record.requestType) ? record.requestType : 'Other',
-      'Description': record.description || ''
-    };
-
-    if (record.newDataSourceNeeded === true || record.newDataSourceNeeded === 'true' || record.newDataSourceNeeded === 'on') {
-      fields['New Data Source Needed'] = true;
-    }
-    if (fields['Request Type'] === 'Presentation support') {
-      if (record.presentationLink) fields['Presentation Link'] = record.presentationLink;
-      if (record.presentationDate) fields['Presentation Date'] = record.presentationDate;
-    }
-    if (record.finalizeByDate) fields['Finalize By Date'] = record.finalizeByDate;
-    if (record.priority && GIS_PRIORITIES.includes(record.priority)) fields['Priority'] = record.priority;
-    // Status / Deliverable Link / Deliverable File / Completed At are system-managed — never set from submitter input.
-
-    const data = await airtableCreate(GIS_BASE, GIS_TABLE, fields);
-    return res.status(200).json({ id: data.id });
-  }
-
-  if (table === 'legal') {
-    // Legal still shares the IT table shim for now.
-    const urgency = record.urgency || record.priority || '';
-    let description = record.description || '';
-    if (record.project) description = `[Project: ${record.project}] ${description}`;
-
-    const fields = {
-      'Submitter Name': name,
-      'Submitter Email': deriveEmail(name),
-      'Department': department,
-      // Request Type omitted for now — "Legal - X" values don't match Airtable's
-      // exact select options; left to default empty rather than fail the write
-      // until the field mapping is fixed separately.
-      'Request Description': description,
-      'Urgency': urgency,
-      'Input Channel': 'Web App',
-      'Status': 'New',
-      'Submitted At': now
-    };
-    const data = await airtableCreate(IT_BASE, IT_TABLE, fields);
+    const data = await airtableCreate(BASE, AUTO_TABLE, fields);
     return res.status(200).json({ id: data.id });
   }
 
@@ -288,7 +272,7 @@ async function handleUploadGisAttachment(payload, res) {
     return res.status(400).json({ error: 'recordId and base64Content are required' });
   }
 
-  const url = `https://api.airtable.com/v0/${GIS_BASE}/${GIS_TABLE}/${recordId}/${encodeURIComponent('Uploaded File')}/uploadAttachment`;
+  const url = `https://api.airtable.com/v0/${BASE}/${GIS_TABLE}/${recordId}/${encodeURIComponent('Uploaded File')}/uploadAttachment`;
   const r = await fetch(url, {
     method: 'POST',
     headers: {
@@ -369,16 +353,21 @@ async function summarizeRequests(tickets) {
 
 async function handleLookup(email, res) {
   const safeEmail = String(email).replace(/"/g, '\\"');
-  const formula = `AND(LOWER({Submitter Email})=LOWER("${safeEmail}"), NOT({Status}="Closed"), NOT({Status}="Resolved"))`;
+  const submitterFormula = `AND(LOWER({Submitter Email})=LOWER("${safeEmail}"), NOT({Status}="Closed"), NOT({Status}="Resolved"))`;
+  const requesterFormula = `AND(LOWER({Requester Email})=LOWER("${safeEmail}"), NOT({Status}="Closed"), NOT({Status}="Resolved"))`;
 
-  // Each base is queried independently and fails silently on its own — a
-  // permissions error on one base should never block results from the other.
-  const [itRecords, autoRecords] = await Promise.all([
-    airtableList(IT_BASE, IT_TABLE, formula, AIRTABLE_API_KEY).catch((err) => {
+  // Each table is queried independently and fails silently on its own — a
+  // permissions error on one table should never block results from the others.
+  const [itRecords, gisRecords, autoRecords] = await Promise.all([
+    airtableList(BASE, IT_TABLE, submitterFormula, AIRTABLE_API_KEY).catch((err) => {
       console.error('IT lookup failed:', err.message);
       return [];
     }),
-    airtableList(AUTOMATION_BASE, AUTOMATION_TABLE, formula, AIRTABLE_API_KEY).catch((err) => {
+    airtableList(BASE, GIS_TABLE, requesterFormula, AIRTABLE_API_KEY).catch((err) => {
+      console.error('GIS lookup failed:', err.message);
+      return [];
+    }),
+    airtableList(BASE, AUTO_TABLE, submitterFormula, AIRTABLE_API_KEY).catch((err) => {
       console.error('Automation lookup failed:', err.message);
       return [];
     })
@@ -390,7 +379,13 @@ async function handleLookup(email, res) {
     status: r.fields['Status'] || 'New',
     submittedAt: r.fields['Submitted At'] || '',
     description: r.fields['Request Description'] || ''
-  })).concat(autoRecords.map((r) => ({
+  })).concat(gisRecords.map((r) => ({
+    name: r.fields['Requester Name'] || '',
+    requestType: `GIS - ${r.fields['Request Type'] || 'Request'}`,
+    status: r.fields['Status'] || 'New',
+    submittedAt: r.fields['Created At'] || '',
+    description: r.fields['Description'] || ''
+  }))).concat(autoRecords.map((r) => ({
     name: r.fields['Submitter Name'] || '',
     requestType: `Automation - ${r.fields['Title'] || 'Untitled'}`,
     status: r.fields['Status'] || 'New',
@@ -428,7 +423,8 @@ async function fetchProjectContext(lastUserMessage) {
   if (!hasTrigger) return null;
 
   const mentionedProject = detectProjectMention(lastUserMessage);
-  let url = `https://api.airtable.com/v0/${PROJECT_BASE}/${PROJECT_TABLE}?pageSize=100`;
+  const pageSize = mentionedProject ? 100 : 50;
+  let url = `https://api.airtable.com/v0/${PROJECT_BASE}/${PROJECT_TABLE}?pageSize=${pageSize}`;
   if (mentionedProject) {
     const formula = `SEARCH(LOWER("${mentionedProject.toLowerCase()}"), LOWER({Project}))`;
     url += `&filterByFormula=${encodeURIComponent(formula)}`;
