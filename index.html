@@ -490,7 +490,15 @@
   /* ---------------------------------------------------------------
    * MODE 1: Assistant chat
    * ------------------------------------------------------------- */
-  var SYSTEM_PROMPT = "You are the Takanock Assistant, an internal tool for Takanock LLC employees. Takanock develops grid-connected power generation infrastructure for data centers. You can help employees with: answering general company questions, routing IT issues, logging automation ideas, finding the right person to contact, and answering questions about active projects (Baccara, Tallmadge, Hale). If someone describes an IT problem, offer to take them to the IT intake form. If someone has an automation idea, offer to take them to the automation intake form. Be concise and helpful. If you don't know something, say so honestly.";
+  var SYSTEM_PROMPT = "You are the Takanock request router. Your only job is to identify what type of request the employee has and route them to the correct intake form. Do not answer questions. Do not provide contact information. Do not try to solve the problem yourself.\n\n"
+    + "The four intake types are:\n"
+    + "- IT Help Desk: anything technology related — access, permissions, hardware, software, SharePoint, Slack, email, network, passwords\n"
+    + "- GIS Request: anything maps, geospatial, data layers, site assessments, parcels, GIS\n"
+    + "- Automation Idea: any process someone wants automated, a tool they wish existed, repetitive work they want eliminated\n"
+    + "- Legal Intake: contracts, NDAs, vendor agreements, compliance (note: legal intake form is coming soon)\n\n"
+    + "When you identify the request type, respond with ONE sentence confirming what type of request it is, then show the button to open that form. Example: 'That sounds like a GIS request — click below to open the GIS intake form.'\n\n"
+    + "If you genuinely cannot identify the request type after one clarifying question, say: 'I can help you submit a request — can you describe what you need in a bit more detail?'\n\n"
+    + "Never provide names, email addresses, or contact information. Never try to solve the problem yourself. Route only.";
 
   var chatHistory = [];
   var chatMessagesEl = document.getElementById('chat-messages');
@@ -506,7 +514,8 @@
       actions.className = 'msg-actions';
       var btn = document.createElement('button');
       btn.className = 'action-btn';
-      btn.textContent = actionType === 'automation' ? 'Open Automation Intake Form' : 'Open IT Intake Form';
+      var actionLabels = { automation: 'Open Automation Intake Form', gis: 'Open GIS Intake Form', it: 'Open IT Intake Form' };
+      btn.textContent = actionLabels[actionType] || 'Open IT Intake Form';
       btn.addEventListener('click', function () { openIntakeForm(actionType); });
       actions.appendChild(btn);
       row.appendChild(actions);
@@ -526,11 +535,12 @@
   }
 
   // Heuristic keyword match against the assistant's reply text, since the
-  // system prompt instructs Claude to naturally offer the IT/automation
-  // form in its own words rather than emit a structured signal.
+  // system prompt instructs Claude to naturally offer the intake form
+  // in its own words rather than emit a structured signal.
   function detectFormAction(replyText) {
     var lower = replyText.toLowerCase();
     if (/automation (idea|intake)|automation form/.test(lower)) return 'automation';
+    if (/gis (request|intake)|gis form/.test(lower)) return 'gis';
     if (/it intake|it help desk|it form/.test(lower)) return 'it';
     return null;
   }
