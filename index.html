@@ -137,6 +137,18 @@
     font-size: 0.9em;
   }
   .msg-actions { margin-top: 8px; }
+  .link-toggle {
+    display: inline-block;
+    margin-top: 8px;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--orange);
+    text-decoration: underline;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
   .action-btn {
     background: var(--orange);
     color: var(--white);
@@ -1146,14 +1158,20 @@
         bodyWrap.appendChild(renderTicketTable(visible));
       }
 
-      if (!showAll && older.length) {
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'action-btn';
-        btn.style.marginTop = '12px';
-        btn.textContent = 'View past requests';
-        btn.addEventListener('click', function () { renderBody(true); });
-        bodyWrap.appendChild(btn);
+      if (showAll) {
+        var hideLink = document.createElement('button');
+        hideLink.type = 'button';
+        hideLink.className = 'link-toggle';
+        hideLink.textContent = 'Hide past requests';
+        hideLink.addEventListener('click', function () { renderBody(false); });
+        bodyWrap.appendChild(hideLink);
+      } else if (older.length) {
+        var viewLink = document.createElement('button');
+        viewLink.type = 'button';
+        viewLink.className = 'link-toggle';
+        viewLink.textContent = 'View past requests';
+        viewLink.addEventListener('click', function () { renderBody(true); });
+        bodyWrap.appendChild(viewLink);
       }
     }
 
