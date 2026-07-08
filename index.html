@@ -545,6 +545,13 @@
     return null;
   }
 
+  // Removes bracketed placeholders like "[Open GIS Request Form]" from the
+  // displayed text — the actual button already renders below the bubble via
+  // detectFormAction, so the bracket text would just be redundant.
+  function stripFormPlaceholders(text) {
+    return text.replace(/\[open[^\]]*form\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   function setChatDisabled(disabled) {
     chatInputEl.disabled = disabled;
     chatSendEl.disabled = disabled;
@@ -573,9 +580,11 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         hideTyping();
-        var replyText = extractReplyText(data);
+        var rawReply = extractReplyText(data);
+        var actionType = detectFormAction(rawReply);
+        var replyText = stripFormPlaceholders(rawReply);
         chatHistory.push({ role: 'assistant', content: replyText });
-        renderBubble('assistant', replyText, detectFormAction(replyText));
+        renderBubble('assistant', replyText, actionType);
       })
       .catch(function () {
         hideTyping();
