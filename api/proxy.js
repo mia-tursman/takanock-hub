@@ -4,7 +4,6 @@
 // Required environment variables:
 //   ANTHROPIC_API_KEY        — Anthropic API key for chat/ticket summarization
 //   AIRTABLE_API_KEY         — Airtable token used for all writes and IT/GIS/Automation reads
-//   AIRTABLE_DEV_READ_TOKEN  — Airtable token used for the project tracker read
 //   AIRTABLE_HUB_BASE        — base ID shared by the IT, GIS, and Automation tables
 //   AIRTABLE_IT_TABLE        — IT Help Desk table ID
 //   AIRTABLE_GIS_TABLE       — GIS Request table ID
@@ -22,14 +21,7 @@ const IT_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
 const GIS_REQUEST_TYPES = ['New map', 'New data source', 'Presentation support', 'Other'];
 const GIS_PRIORITIES = ['High', 'Medium', 'Low'];
 
-const PROJECT_BASE = 'app8TcmAlSOb6rkYx';
-const PROJECT_TABLE = 'tbl9pfOnrPMRccTPn';
-
-const PROJECT_NAMES = ['Baccara', 'Tallmadge', 'Hale', 'Connemara'];
-const PROJECT_TRIGGER_KEYWORDS = ['baccara', 'tallmadge', 'hale', 'connemara', 'project', 'status', 'phase', 'timeline', 'schedule', 'milestone'];
-
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
-const AIRTABLE_DEV_READ_TOKEN = process.env.AIRTABLE_DEV_READ_TOKEN;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 module.exports = async function handler(req, res) {
@@ -299,44 +291,12 @@ async function handleLookup(email, res) {
 }
 
 /* -----------------------------------------------------------------
- * Chat (Anthropic) with live project data injection
+ * Chat (Anthropic)
  * --------------------------------------------------------------- */
-
-function detectProjectMention(text) {
-  const lower = text.toLowerCase();
-  return PROJECT_NAMES.find((p) => lower.indexOf(p.toLowerCase()) !== -1) || null;
-}
-
-async function fetchProjectContext(lastUserMessage) {
-  const lower = lastUserMessage.toLowerCase();
-  const hasTrigger = PROJECT_TRIGGER_KEYWORDS.some((k) => lower.indexOf(k) !== -1);
-  if (!hasTrigger) return null;
-
-  const mentionedProject = detectProjectMention(lastUserMessage);
-  const pageSize = mentionedProject ? 100 : 50;
-  let url = `https://api.airtable.com/v0/${PROJECT_BASE}/${PROJECT_TABLE}?pageSize=${pageSize}`;
-  if (mentionedProject) {
-    const formula = `SEARCH(LOWER("${mentionedProject.toLowerCase()}"), LOWER({Project}))`;
-    url += `&filterByFormula=${encodeURIComponent(formula)}`;
-  }
-
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${AIRTABLE_DEV_READ_TOKEN}` } });
-  if (!r.ok) return null; // fail soft — chat should still work without live project context
-  const data = await r.json();
-  return (data.records || []).map((rec) => rec.fields);
-}
 
 async function handleChat(body, res) {
   const messages = body.messages || [];
-  let system = body.system || '';
-
-  const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
-  if (lastUserMsg && lastUserMsg.content) {
-    const projectContext = await fetchProjectContext(String(lastUserMsg.content)).catch(() => null);
-    if (projectContext && projectContext.length) {
-      system += `\n\nLive project data from the internal tracker (use this to answer project questions accurately):\n${JSON.stringify(projectContext)}`;
-    }
-  }
+  const system = body.system || '';
 
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
