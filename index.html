@@ -338,7 +338,7 @@
     <div class="chat-container">
       <div class="chat-header">
         <h1>Takanock Assistant</h1>
-        <p>Tell me what you need and I'll route you to the right form — IT Help Desk, GIS Request, Automation Idea, or Legal Intake.</p>
+        <p>Describe your problem and I'll get you to the right place — or tell you who to ask.</p>
       </div>
       <div class="chat-messages" id="chat-messages"></div>
       <div class="chat-input-row">
@@ -356,7 +356,6 @@
         <option value="it">IT Help Desk</option>
         <option value="gis">GIS Request</option>
         <option value="automation">Automation Idea</option>
-        <option value="legal">Legal Intake</option>
       </select>
       <form id="request-form"></form>
       <div id="it-flow" style="display:none;"></div>
@@ -490,18 +489,25 @@
   /* ---------------------------------------------------------------
    * MODE 1: Assistant chat
    * ------------------------------------------------------------- */
-  var SYSTEM_PROMPT = "You are the Takanock request router. Your only job is to identify what type of request the employee has and route them to the correct intake form. Do not answer questions. Do not try to solve the problem yourself.\n\n"
-    + "The four intake types are:\n"
+  var SYSTEM_PROMPT = "You are the Takanock request router. Your only job is to identify what type of request the employee has and route them to the correct intake form, or tell them who to contact if that's all they're asking. Do not answer other questions. Do not try to solve the problem yourself.\n\n"
+    + "The three intake types are:\n"
     + "- IT Help Desk: anything technology related — access, permissions, hardware, software, SharePoint, Slack, email, network, passwords\n"
     + "- GIS Request: anything maps, geospatial, data layers, site assessments, parcels, GIS\n"
-    + "- Automation Idea: any process someone wants automated, a tool they wish existed, repetitive work they want eliminated\n"
-    + "- Legal Intake: contracts, NDAs, vendor agreements, compliance (note: legal intake form is coming soon)\n\n"
+    + "- Automation Idea: any process someone wants automated, a tool they wish existed, repetitive work they want eliminated\n\n"
     + "When you identify the request type, respond with a short, warm, natural reply — casual but professional, never robotic — that confirms the request type and tells them what happens next. The form itself renders automatically below your reply, so don't tell them to click a button or describe any UI element. Match this tone exactly:\n"
     + "- GIS: \"Got it — that's a GIS request! Fill out the form below and Jacob will get back to you.\"\n"
     + "- IT: \"Sounds like an IT issue — submit a ticket below and the IT team will pick it up!\"\n"
     + "- Automation: \"This sounds like an automation request! Submit your idea below and Ivan will review it.\"\n\n"
+    + "If someone asks who to contact instead of describing something to submit, answer with the relevant name and email from this directory — never guess a name or email beyond it:\n"
+    + "- IT issues: Jacob Paul (jpaul@takanock.com)\n"
+    + "- GIS requests: Jacob Paul (jpaul@takanock.com)\n"
+    + "- Automation ideas: Ivan Benavides (ibenavides@takanock.com)\n"
+    + "- HR questions: Stephanie Coate (scoate@takanock.com)\n"
+    + "- Legal questions: Adam Smith (asmith@takanock.com)\n"
+    + "- Finance questions: Fatima Figueroa (ffigueroa@takanock.com)\n"
+    + "If they ask about a contact outside this directory, say you don't have that contact information rather than guessing. Still route an actual IT, GIS, or Automation request to its intake form as usual, and never try to solve the problem yourself — just point them to the right person.\n\n"
     + "If you genuinely cannot identify the request type after one clarifying question, say: 'I can help you submit a request — can you describe what you need in a bit more detail?'\n\n"
-    + "Don't provide contact information beyond the names in the example responses above. Never try to solve the problem yourself. Route only.";
+    + "Don't provide any contact information beyond the directory above. Never try to solve the problem yourself. Route, or point to a contact — nothing else.";
 
   var chatHistory = [];
   var chatMessagesEl = document.getElementById('chat-messages');
@@ -601,14 +607,12 @@
     if (e.key === 'Enter') sendMessage();
   });
 
-  renderBubble('assistant', "Hi, I'm the Takanock Assistant. Tell me what you're dealing with and I'll get you to the right form — IT Help Desk, GIS Request, Automation Idea, or Legal Intake.");
+  renderBubble('assistant', "Hi, I'm the Takanock Assistant. What do you need help with today? Describe your problem and I'll get you to the right place — or tell you who to ask.");
 
   /* ---------------------------------------------------------------
    * MODE 2: Submit a Request
    * ------------------------------------------------------------- */
   var DEPARTMENTS = ['Development', 'GIS', 'Finance', 'Legal', 'HR', 'Commercial', 'Engineering', 'Operations', 'Other'];
-  var PROJECTS = ['Baccara', 'Tallmadge', 'Hale', 'Other'];
-
   var FORM_CONFIGS = {
     automation: {
       table: 'automation',
@@ -618,15 +622,6 @@
         { name: 'currentProcess', label: 'How do you do this today?', type: 'textarea', required: false },
         { name: 'description', label: 'What would the ideal solution look like?', type: 'textarea', required: false },
         { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Medium', 'High', 'Urgent'], required: true }
-      ]
-    },
-    legal: {
-      table: 'legal',
-      fields: [
-        { name: 'requestType', label: 'Request Type', type: 'select', options: ['Contract Review', 'NDA', 'Vendor Agreement', 'Compliance', 'Other'], required: true },
-        { name: 'project', label: 'Project', type: 'select', options: PROJECTS, required: true },
-        { name: 'description', label: 'Description', type: 'textarea', required: true },
-        { name: 'urgency', label: 'Urgency', type: 'select', options: ['Low', 'Medium', 'High', 'Urgent'], required: true }
       ]
     }
   };
@@ -796,8 +791,7 @@
         if (data.error) {
           reply = 'Sorry, something went wrong submitting your ticket. Please try again.';
         } else {
-          var ref = 'TKN-IT-' + Math.floor(1000 + Math.random() * 9000);
-          reply = 'Your ticket has been submitted! Reference number: ' + ref + '. Jacob from IT will be in touch soon.';
+          reply = 'Your ticket has been submitted! Jacob from IT will be in touch soon.';
         }
         itChatHistory.push({ role: 'assistant', content: reply });
         makeBubble(itMessagesEl, 'assistant', reply);
@@ -910,11 +904,12 @@
     + "- Request Type (New map, New data source, Presentation support, Other) — infer from context if possible, otherwise ask\n"
     + "- Description — a clear, detailed description of what they need; this is the primary field Jacob will read\n"
     + "- New Data Source Needed — true only if the conversation indicates a new external data source (e.g. a KMZ from a gas company) needs to be incorporated\n"
-    + "- Presentation Link and Presentation Date — only if Request Type is Presentation support and mentioned\n"
+    + "- Presentation Date — only if Request Type is Presentation support and mentioned\n"
     + "- Finalize By Date — the date they need a reviewable draft/deliverable by, if mentioned\n"
     + "- Priority (High, Medium, Low) — infer if possible, otherwise ask\n\n"
     + "Keep the description open-ended and detailed rather than steering to rigid categories. Ask one or two questions at a time, don't interrogate.\n\n"
     + "When converting Presentation Date or Finalize By Date to YYYY-MM-DD format, if the requester doesn't mention a year, assume the current year, " + CURRENT_YEAR + " (e.g. \"July 20\" becomes \"" + CURRENT_YEAR + "-07-20\"). Only use a different year if the requester explicitly states one.\n\n"
+    + "After you have gathered everything else above, ask this exact question before wrapping up: \"Do you have any relevant files? If so, paste a SharePoint or OneDrive link and I'll include it. If not, you can send files directly to jpaul@takanock.com after submitting.\" If they share a link, use it as the Presentation Link. If they say no, skip it, or don't have one, leave Presentation Link blank — do not ask again.\n\n"
     + "Once you have all fields, present a summary and ask the user to confirm by saying \"yes\".\n"
     + "When the user confirms, respond ONLY with this JSON and nothing else — no extra text before or after:\n"
     + "{\"submitted\":true,\"requesterName\":\"VALUE\",\"project\":\"VALUE\",\"requestType\":\"VALUE\",\"description\":\"VALUE\",\"newDataSourceNeeded\":true,\"presentationLink\":\"VALUE\",\"presentationDate\":\"VALUE\",\"finalizeByDate\":\"VALUE\",\"priority\":\"VALUE\"}";
@@ -951,8 +946,7 @@
         if (data.error) {
           reply = 'Sorry, something went wrong submitting your request. Please try again.';
         } else {
-          var ref = 'TKN-GIS-' + Math.floor(1000 + Math.random() * 9000);
-          reply = 'Your GIS request has been submitted! Reference number: ' + ref + '. Jacob will be in touch soon.';
+          reply = 'Your GIS request has been submitted! Jacob will be in touch soon.';
         }
         gisChatHistory.push({ role: 'assistant', content: reply });
         makeBubble(gisMessagesEl, 'assistant', reply);
@@ -1085,6 +1079,34 @@
     return d;
   }
 
+  var TICKET_SECTIONS = [
+    { type: 'it', title: 'IT Requests' },
+    { type: 'gis', title: 'GIS Requests' },
+    { type: 'automation', title: 'Automation Ideas' }
+  ];
+
+  function renderTicketTable(tickets) {
+    var table = document.createElement('table');
+    table.className = 'tickets';
+    var thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>Request Type</th><th>Status</th><th>Submitted</th><th>Description</th></tr>';
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    tickets.forEach(function (t) {
+      var tr = document.createElement('tr');
+      tr.appendChild(td(t.request || '—'));
+      var statusTd = document.createElement('td');
+      statusTd.appendChild(statusBadge(t.status));
+      tr.appendChild(statusTd);
+      tr.appendChild(td(formatDate(t.submittedAt)));
+      tr.appendChild(td(truncate(t.description, 60)));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    return table;
+  }
+
   function renderTickets(tickets) {
     ticketResultsEl.innerHTML = '';
     if (!tickets || !tickets.length) {
@@ -1095,26 +1117,16 @@
       return;
     }
 
-    var table = document.createElement('table');
-    table.className = 'tickets';
-    var thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th>Name</th><th>Request</th><th>Status</th><th>Submitted</th><th>Description</th></tr>';
-    table.appendChild(thead);
+    TICKET_SECTIONS.forEach(function (section) {
+      var sectionTickets = tickets.filter(function (t) { return t.type === section.type; });
+      if (!sectionTickets.length) return;
 
-    var tbody = document.createElement('tbody');
-    tickets.forEach(function (t) {
-      var tr = document.createElement('tr');
-      tr.appendChild(td(t.name || '—'));
-      tr.appendChild(td(t.request || '—'));
-      var statusTd = document.createElement('td');
-      statusTd.appendChild(statusBadge(t.status));
-      tr.appendChild(statusTd);
-      tr.appendChild(td(formatDate(t.submittedAt)));
-      tr.appendChild(td(truncate(t.description, 60)));
-      tbody.appendChild(tr);
+      var heading = document.createElement('h2');
+      heading.style.cssText = 'font-size:15px;margin:24px 0 12px;';
+      heading.textContent = section.title;
+      ticketResultsEl.appendChild(heading);
+      ticketResultsEl.appendChild(renderTicketTable(sectionTickets));
     });
-    table.appendChild(tbody);
-    ticketResultsEl.appendChild(table);
   }
 
   ticketForm.addEventListener('submit', function (e) {

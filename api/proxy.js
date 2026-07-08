@@ -147,9 +147,9 @@ async function handleSubmit(record, table, res) {
     if (record.newDataSourceNeeded === true || record.newDataSourceNeeded === 'true' || record.newDataSourceNeeded === 'on') {
       fields['New Data Source Needed'] = true;
     }
-    if (fields['Request Type'] === 'Presentation support') {
-      if (record.presentationLink) fields['Presentation Link'] = record.presentationLink;
-      if (record.presentationDate) fields['Presentation Date'] = record.presentationDate;
+    if (record.presentationLink) fields['Presentation Link'] = record.presentationLink;
+    if (fields['Request Type'] === 'Presentation support' && record.presentationDate) {
+      fields['Presentation Date'] = record.presentationDate;
     }
     if (record.finalizeByDate) fields['Finalize By Date'] = record.finalizeByDate;
     if (record.priority && GIS_PRIORITIES.includes(record.priority)) fields['Priority'] = record.priority;
@@ -258,20 +258,23 @@ async function handleLookup(email, res) {
   ]);
 
   const tickets = itRecords.map((r) => ({
+    type: 'it',
     name: r.fields['Submitter Name'] || '',
     requestType: r.fields['Request Type'] || '',
     status: r.fields['Status'] || 'New',
     submittedAt: r.fields['Submitted At'] || '',
     description: r.fields['Request Description'] || ''
   })).concat(gisRecords.map((r) => ({
+    type: 'gis',
     name: r.fields['Requester Name'] || '',
-    requestType: `GIS - ${r.fields['Request Type'] || 'Request'}`,
+    requestType: r.fields['Request Type'] || 'Request',
     status: r.fields['Status'] || 'New',
     submittedAt: r.fields['Created At'] || '',
     description: r.fields['Description'] || ''
   }))).concat(autoRecords.map((r) => ({
+    type: 'automation',
     name: r.fields['Submitter Name'] || '',
-    requestType: `Automation - ${r.fields['Title'] || 'Untitled'}`,
+    requestType: r.fields['Title'] || 'Untitled',
     status: r.fields['Status'] || 'New',
     submittedAt: r.fields['Submitted Date'] || '',
     description: r.fields['Description'] || ''
@@ -282,7 +285,7 @@ async function handleLookup(email, res) {
   tickets.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 
   const publicTickets = tickets.map((t) => ({
-    name: t.name,
+    type: t.type,
     request: t.request,
     status: t.status,
     submittedAt: t.submittedAt,
