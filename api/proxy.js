@@ -68,6 +68,7 @@ module.exports = async function handler(req, res) {
 
 async function airtableCreate(baseId, tableId, fields) {
   const url = `https://api.airtable.com/v0/${baseId}/${tableId}`;
+  console.log('Airtable payload:', JSON.stringify({ records: [{ fields }] }));
   const res = await fetch(url, {
     method: 'POST',
     headers: {
