@@ -1084,17 +1084,30 @@
     { type: 'gis', title: 'GIS Requests' },
     { type: 'automation', title: 'Automation Ideas' }
   ];
+  var TICKET_WINDOW_DAYS = 10;
+
+  // Tickets with a missing/unparseable date are treated as "older" rather
+  // than recent, so they only surface behind "View past requests" instead
+  // of silently mixing into the default recent view.
+  function isRecentTicket(t) {
+    var d = new Date(t.submittedAt);
+    if (isNaN(d.getTime())) return false;
+    var cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - TICKET_WINDOW_DAYS);
+    return d >= cutoff;
+  }
 
   function renderTicketTable(tickets) {
     var table = document.createElement('table');
     table.className = 'tickets';
     var thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th>Request Type</th><th>Status</th><th>Submitted</th><th>Description</th></tr>';
+    thead.innerHTML = '<tr><th>Name</th><th>Request Type</th><th>Status</th><th>Submitted</th><th>Description</th></tr>';
     table.appendChild(thead);
 
     var tbody = document.createElement('tbody');
     tickets.forEach(function (t) {
       var tr = document.createElement('tr');
+      tr.appendChild(td(t.name || '—'));
       tr.appendChild(td(t.request || '—'));
       var statusTd = document.createElement('td');
       statusTd.appendChild(statusBadge(t.status));
@@ -1107,25 +1120,56 @@
     return table;
   }
 
-  function renderTickets(tickets) {
-    ticketResultsEl.innerHTML = '';
-    if (!tickets || !tickets.length) {
-      var p = document.createElement('p');
-      p.className = 'muted';
-      p.textContent = 'No tickets found for this email address.';
-      ticketResultsEl.appendChild(p);
-      return;
+  function renderTicketSection(section, tickets) {
+    var sectionTickets = tickets.filter(function (t) { return t.type === section.type; });
+    var recent = sectionTickets.filter(isRecentTicket);
+    var older = sectionTickets.filter(function (t) { return !isRecentTicket(t); });
+
+    var heading = document.createElement('h2');
+    heading.style.cssText = 'font-size:15px;margin:24px 0 12px;';
+    heading.textContent = section.title;
+    ticketResultsEl.appendChild(heading);
+
+    var bodyWrap = document.createElement('div');
+    ticketResultsEl.appendChild(bodyWrap);
+
+    function renderBody(showAll) {
+      bodyWrap.innerHTML = '';
+      var visible = showAll ? sectionTickets : recent;
+
+      if (!visible.length) {
+        var p = document.createElement('p');
+        p.className = 'muted';
+        p.textContent = 'No requests in the past 10 days.';
+        bodyWrap.appendChild(p);
+      } else {
+        bodyWrap.appendChild(renderTicketTable(visible));
+      }
+
+      if (!showAll && older.length) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'action-btn';
+        btn.style.marginTop = '12px';
+        btn.textContent = 'View past requests';
+        btn.addEventListener('click', function () { renderBody(true); });
+        bodyWrap.appendChild(btn);
+      }
     }
 
-    TICKET_SECTIONS.forEach(function (section) {
-      var sectionTickets = tickets.filter(function (t) { return t.type === section.type; });
-      if (!sectionTickets.length) return;
+    renderBody(false);
+  }
 
-      var heading = document.createElement('h2');
-      heading.style.cssText = 'font-size:15px;margin:24px 0 12px;';
-      heading.textContent = section.title;
-      ticketResultsEl.appendChild(heading);
-      ticketResultsEl.appendChild(renderTicketTable(sectionTickets));
+  function renderTickets(tickets) {
+    ticketResultsEl.innerHTML = '';
+
+    var banner = document.createElement('p');
+    banner.className = 'muted';
+    banner.textContent = 'Showing requests from the past 10 days.';
+    ticketResultsEl.appendChild(banner);
+
+    TICKET_SECTIONS.forEach(function (section) {
+      renderTicketSection(section, tickets || []);
     });
   }
 

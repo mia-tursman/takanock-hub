@@ -286,6 +286,7 @@ async function handleLookup(email, res) {
 
   const publicTickets = tickets.map((t) => ({
     type: t.type,
+    name: t.name,
     request: t.request,
     status: t.status,
     submittedAt: t.submittedAt,
