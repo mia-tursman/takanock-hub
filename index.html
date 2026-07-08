@@ -894,20 +894,28 @@
   }
 
   /* ---------------------------------------------------------------
-   * GIS Request: hybrid chat intake
-   * Chat gathers the request conversationally, an extraction call
-   * turns it into structured fields, then an editable confirm form
-   * (built with the same addField helper as the static forms) is the
-   * human checkpoint before anything is written to Airtable.
+   * GIS Request: chat intake
+   * Same pattern as the IT Help Desk: pure conversational intake —
+   * the assistant gathers fields, presents a summary, and on user
+   * confirmation ("yes") responds with a raw JSON object that the
+   * client parses and submits directly. No review form, no attachment
+   * upload — Requester Email is inferred the same way IT infers it.
    * ------------------------------------------------------------- */
-  var GIS_SYSTEM_PROMPT = "You are a focused intake assistant collecting a GIS request for Jacob Paul's team at Takanock. "
-    + "Have a natural conversation to gather: what they need (a new map, a new data source, presentation support, or something else), "
-    + "which project it relates to if any (e.g. Baccara, Tallmadge, Hale, another, or none), "
-    + "a clear and detailed description of the deliverable, whether they have a source file to hand off (e.g. a KMZ from a gas company), "
-    + "and — only if this is presentation support — both the actual presentation date and a separate earlier 'finalize by' "
-    + "deadline they need a reviewable draft by, since it's an iterative process. Ask one or two questions at a time, don't "
-    + "interrogate. Keep the description open-ended and detailed rather than steering to rigid categories. When you have enough "
-    + "to build a solid request, tell the user they can click 'Review My Request' below to see a summary.";
+  var GIS_SYSTEM_PROMPT = "You are the Takanock GIS Request intake assistant. Your job is to help Takanock employees submit GIS requests conversationally for Jacob Paul's team.\n\n"
+    + "Gather these fields through friendly conversation (ask for name first):\n"
+    + "- Requester Name (full name)\n"
+    + "- Requester Email — do not ask, infer using convention: first letter of first name + last name + @takanock.com. John Smith = jsmith@takanock.com\n"
+    + "- Project — which project this relates to, if any (e.g. Baccara, Tallmadge, Hale), or none\n"
+    + "- Request Type (New map, New data source, Presentation support, Other) — infer from context if possible, otherwise ask\n"
+    + "- Description — a clear, detailed description of what they need; this is the primary field Jacob will read\n"
+    + "- New Data Source Needed — true only if the conversation indicates a new external data source (e.g. a KMZ from a gas company) needs to be incorporated\n"
+    + "- Presentation Link and Presentation Date — only if Request Type is Presentation support and mentioned\n"
+    + "- Finalize By Date — the date they need a reviewable draft/deliverable by, if mentioned\n"
+    + "- Priority (High, Medium, Low) — infer if possible, otherwise ask\n\n"
+    + "Keep the description open-ended and detailed rather than steering to rigid categories. Ask one or two questions at a time, don't interrogate.\n\n"
+    + "Once you have all fields, present a summary and ask the user to confirm by saying \"yes\".\n"
+    + "When the user confirms, respond ONLY with this JSON and nothing else — no extra text before or after:\n"
+    + "{\"submitted\":true,\"requesterName\":\"VALUE\",\"project\":\"VALUE\",\"requestType\":\"VALUE\",\"description\":\"VALUE\",\"newDataSourceNeeded\":true,\"presentationLink\":\"VALUE\",\"presentationDate\":\"VALUE\",\"finalizeByDate\":\"VALUE\",\"priority\":\"VALUE\"}";
 
   var gisChatHistory = [];
   var gisMessagesEl = null;
@@ -915,6 +923,42 @@
   var gisSendEl = null;
   var gisTypingRow = null;
   var gisFlowEl = document.getElementById('gis-flow');
+  var GIS_GREETING = "Hi! I'm the Takanock GIS Request assistant. Tell me what you need — a new map, a new data source, presentation support, or something else — and I'll gather the details for Jacob's team.";
+
+  function gisSubmitTicket(parsed) {
+    var record = {
+      requesterName: parsed.requesterName || '',
+      project: parsed.project || '',
+      requestType: parsed.requestType || '',
+      description: parsed.description || '',
+      newDataSourceNeeded: parsed.newDataSourceNeeded === true,
+      presentationLink: parsed.presentationLink || '',
+      presentationDate: parsed.presentationDate || '',
+      finalizeByDate: parsed.finalizeByDate || '',
+      priority: parsed.priority || ''
+    };
+
+    return fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ airtable_record: record, table: 'gis' })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var reply;
+        if (data.error) {
+          reply = 'Sorry, something went wrong submitting your request. Please try again.';
+        } else {
+          var ref = 'TKN-GIS-' + Math.floor(1000 + Math.random() * 9000);
+          reply = 'Your GIS request has been submitted! Reference number: ' + ref + '. Jacob will be in touch soon.';
+        }
+        gisChatHistory.push({ role: 'assistant', content: reply });
+        makeBubble(gisMessagesEl, 'assistant', reply);
+      })
+      .catch(function () {
+        makeBubble(gisMessagesEl, 'assistant', 'Sorry, something went wrong submitting your request. Please try again.');
+      });
+  }
 
   function gisSendMessage() {
     var text = gisInputEl.value.trim();
@@ -941,12 +985,20 @@
       .then(function (data) {
         removeTyping(gisTypingRow);
         var replyText = extractReplyText(data);
+
+        var parsed = null;
+        try { parsed = JSON.parse(replyText.trim()); } catch (e) { /* not the final JSON — a normal chat reply */ }
+
+        if (parsed && parsed.submitted === true) {
+          return gisSubmitTicket(parsed);
+        }
+
         gisChatHistory.push({ role: 'assistant', content: replyText });
         makeBubble(gisMessagesEl, 'assistant', replyText);
       })
       .catch(function () {
         removeTyping(gisTypingRow);
-        makeBubble(gisMessagesEl, 'assistant', 'Sorry, something went wrong. Please try again.');
+        makeBubble(gisMessagesEl, 'assistant', 'Connection error — please try again.');
       })
       .then(function () {
         gisInputEl.disabled = false;
@@ -955,10 +1007,16 @@
       });
   }
 
-  function renderGisIntake(preserveBanner) {
+  function gisResetChat() {
+    gisChatHistory = [];
+    gisMessagesEl.innerHTML = '';
+    makeBubble(gisMessagesEl, 'assistant', GIS_GREETING);
+  }
+
+  function renderGisIntake() {
     requestForm.style.display = 'none';
     itFlowEl.style.display = 'none';
-    if (!preserveBanner) showBanner('request-banner', null);
+    showBanner('request-banner', null);
     gisFlowEl.style.display = 'block';
 
     if (gisFlowEl.dataset.built) return;
@@ -966,7 +1024,7 @@
 
     gisFlowEl.innerHTML =
       '<div class="chat-container" style="height:480px;">' +
-        '<div class="chat-header"><h1>GIS Request</h1><p>Tell me what you need — I\'ll help pull together the details for Jacob\'s team.</p></div>' +
+        '<div class="chat-header"><h1>GIS Request</h1><p>Tell me what you need — I\'ll gather the details and submit it for Jacob\'s team.</p></div>' +
         '<div class="chat-messages" id="gis-messages"></div>' +
         '<div class="chat-input-row">' +
           '<input type="text" id="gis-input" class="chat-input" placeholder="Type a message..." autocomplete="off" />' +
@@ -974,9 +1032,8 @@
         '</div>' +
       '</div>' +
       '<div style="text-align:center; margin-top:16px;">' +
-        '<button type="button" id="gis-review-btn" class="action-btn">Review My Request</button>' +
-      '</div>' +
-      '<div id="gis-confirm-wrap"></div>';
+        '<button type="button" id="gis-new-btn" class="action-btn">New Request</button>' +
+      '</div>';
 
     gisMessagesEl = document.getElementById('gis-messages');
     gisInputEl = document.getElementById('gis-input');
@@ -984,176 +1041,9 @@
 
     gisSendEl.addEventListener('click', gisSendMessage);
     gisInputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') gisSendMessage(); });
-    document.getElementById('gis-review-btn').addEventListener('click', gisStartReview);
+    document.getElementById('gis-new-btn').addEventListener('click', gisResetChat);
 
-    makeBubble(gisMessagesEl, 'assistant', "Hi! Let's get your GIS request sorted. What do you need — a new map, a new data source, help with a presentation, or something else?");
-  }
-
-  function gisStartReview() {
-    if (!gisChatHistory.length) {
-      showBanner('request-banner', 'error', 'Tell me a bit about your request in the chat above first, then click Review My Request.');
-      return;
-    }
-
-    var reviewBtn = document.getElementById('gis-review-btn');
-    reviewBtn.disabled = true;
-    reviewBtn.textContent = 'Reviewing...';
-    showBanner('request-banner', null);
-
-    fetch('/api/proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ extract_gis_request: { messages: gisChatHistory } })
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data.error) {
-          showBanner('request-banner', 'error', 'Could not summarize your request yet — try adding a bit more detail in chat.');
-          return;
-        }
-        if (data.incomplete) {
-          showBanner('request-banner', 'error', "I need a bit more detail before building your request — tell me more about what you need in the chat above, then click Review again.");
-          return;
-        }
-        renderGisConfirmForm(data.fields || {});
-      })
-      .catch(function () {
-        showBanner('request-banner', 'error', 'Something went wrong reviewing your request. Please try again.');
-      })
-      .then(function () {
-        reviewBtn.disabled = false;
-        reviewBtn.textContent = 'Review My Request';
-      });
-  }
-
-  function gisUpdatePresentationVisibility(form) {
-    var isPresentation = form.elements['requestType'].value === 'Presentation support';
-    ['presentationLink', 'presentationDate'].forEach(function (name) {
-      var wrap = form.elements[name].closest('.field');
-      if (wrap) wrap.style.display = isPresentation ? '' : 'none';
-    });
-  }
-
-  function renderGisConfirmForm(fields) {
-    var wrap = document.getElementById('gis-confirm-wrap');
-    wrap.innerHTML = '<h2 style="font-size:15px;margin:24px 0 12px;">Review your request</h2>';
-
-    var form = document.createElement('form');
-    form.id = 'gis-confirm-form';
-
-    addField(form, { id: 'gis-field-requesterName', name: 'requesterName', label: 'Your Name', type: 'text', required: true });
-    addField(form, { id: 'gis-field-project', name: 'project', label: 'Project', type: 'text', required: false, listId: 'gis-project-list' });
-    addField(form, { id: 'gis-field-requestType', name: 'requestType', label: 'Request Type', type: 'select', options: ['New map', 'New data source', 'Presentation support', 'Other'], required: true });
-    addField(form, { id: 'gis-field-description', name: 'description', label: 'Description', type: 'textarea', required: true });
-    addField(form, { id: 'gis-field-newDataSourceNeeded', name: 'newDataSourceNeeded', label: 'New data source needed?', type: 'checkbox', required: false });
-    addField(form, { id: 'gis-field-presentationLink', name: 'presentationLink', label: 'Presentation Link (if applicable)', type: 'url', required: false });
-    addField(form, { id: 'gis-field-presentationDate', name: 'presentationDate', label: 'Presentation Date (if applicable)', type: 'date', required: false });
-    addField(form, { id: 'gis-field-finalizeByDate', name: 'finalizeByDate', label: 'Finalize By (deadline for draft/deliverable)', type: 'date', required: false });
-    addField(form, { id: 'gis-field-priority', name: 'priority', label: 'Priority', type: 'select', options: ['High', 'Medium', 'Low'], required: false });
-    addField(form, { id: 'gis-field-attachment', name: 'attachment', label: 'Attach a source file (optional)', type: 'file', required: false });
-
-    Object.keys(fields).forEach(function (k) {
-      var el = form.elements[k];
-      if (!el) return;
-      if (el.type === 'checkbox') el.checked = !!fields[k];
-      else el.value = fields[k];
-    });
-
-    var datalist = document.createElement('datalist');
-    datalist.id = 'gis-project-list';
-    PROJECTS.filter(function (p) { return p !== 'Other'; }).forEach(function (p) {
-      var opt = document.createElement('option');
-      opt.value = p;
-      datalist.appendChild(opt);
-    });
-    form.appendChild(datalist);
-
-    var submitBtn = document.createElement('button');
-    submitBtn.type = 'submit';
-    submitBtn.className = 'submit-btn';
-    submitBtn.textContent = 'Submit Request';
-    form.appendChild(submitBtn);
-
-    form.addEventListener('submit', gisSubmitConfirmForm);
-    form.elements['requestType'].addEventListener('change', function () { gisUpdatePresentationVisibility(form); });
-
-    wrap.appendChild(form);
-    gisUpdatePresentationVisibility(form);
-    wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  function gisSubmitConfirmForm(e) {
-    e.preventDefault();
-    var form = e.target;
-    var record = {};
-    new FormData(form).forEach(function (v, k) { if (k !== 'attachment') record[k] = v; });
-    record.newDataSourceNeeded = form.elements['newDataSourceNeeded'].checked;
-
-    var fileInput = form.elements['attachment'];
-    var file = (fileInput.files && fileInput.files[0]) || null;
-
-    var btn = form.querySelector('.submit-btn');
-    btn.disabled = true;
-    btn.textContent = 'Submitting...';
-    showBanner('request-banner', null);
-
-    fetch('/api/proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ airtable_record: record, table: 'gis' })
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data.error) {
-          showBanner('request-banner', 'error', typeof data.error === 'string' ? data.error : (data.error.message || 'Unable to submit your request. Please try again.'));
-          btn.disabled = false;
-          btn.textContent = 'Submit Request';
-          return;
-        }
-
-        var recordId = data.id;
-        if (!file) {
-          gisFinishSubmit(recordId, null);
-          return;
-        }
-
-        var reader = new FileReader();
-        reader.onload = function () {
-          var base64 = String(reader.result).split(',')[1] || '';
-          fetch('/api/proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              upload_gis_attachment: {
-                recordId: recordId,
-                filename: file.name,
-                contentType: file.type || 'application/octet-stream',
-                base64Content: base64
-              }
-            })
-          })
-            .then(function (r) { return r.json(); })
-            .then(function (uploadData) { gisFinishSubmit(recordId, uploadData); })
-            .catch(function () { gisFinishSubmit(recordId, { warning: 'attachment_upload_failed' }); });
-        };
-        reader.readAsDataURL(file);
-      })
-      .catch(function () {
-        showBanner('request-banner', 'error', 'Unable to submit your request. Please try again.');
-        btn.disabled = false;
-        btn.textContent = 'Submit Request';
-      });
-  }
-
-  function gisFinishSubmit(recordId, uploadResult) {
-    if (uploadResult && uploadResult.warning) {
-      showBanner('request-banner', 'error', 'Your request has been submitted — ticket ID ' + recordId + ' — but the file attachment failed to upload. Please send it to Jacob directly.');
-    } else {
-      showBanner('request-banner', 'success', 'Your GIS request has been submitted. Your ticket ID is ' + recordId + '.');
-    }
-    gisChatHistory = [];
-    gisFlowEl.dataset.built = '';
-    renderGisIntake(true);
+    makeBubble(gisMessagesEl, 'assistant', GIS_GREETING);
   }
 
   showRequestType('it');
