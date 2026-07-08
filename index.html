@@ -469,7 +469,14 @@
   function extractReplyText(data) {
     if (!data) return "Sorry, I didn't get a response. Please try again.";
     if (typeof data === 'string') return data;
-    if (data.error) return 'Error: ' + (data.error.message || data.error);
+    if (data.error) {
+      var errType = (data.error && data.error.type) || '';
+      var errMsg = (data.error && data.error.message) || String(data.error);
+      if (errType === 'overloaded_error' || /overloaded/i.test(errMsg)) {
+        return "I'm a little overwhelmed right now — please try again in a moment.";
+      }
+      return 'Error: ' + errMsg;
+    }
     if (Array.isArray(data.content)) {
       var text = data.content.filter(function (c) { return c.type === 'text'; })
         .map(function (c) { return c.text; }).join('\n').trim();
