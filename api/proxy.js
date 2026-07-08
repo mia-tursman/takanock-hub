@@ -68,7 +68,7 @@ module.exports = async function handler(req, res) {
 
 async function airtableCreate(baseId, tableId, fields) {
   const url = `https://api.airtable.com/v0/${baseId}/${tableId}`;
-  const r = await fetch(url, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${AIRTABLE_API_KEY}`,
@@ -76,11 +76,12 @@ async function airtableCreate(baseId, tableId, fields) {
     },
     body: JSON.stringify({ fields })
   });
-  const data = await r.json();
-  if (!r.ok) {
-    throw new Error((data && data.error && (data.error.message || data.error.type)) || 'Airtable write failed');
+  const responseBody = await res.json();
+  if (!res.ok) {
+    console.error('Airtable error:', JSON.stringify(responseBody));
+    throw new Error(responseBody.error?.message || 'Airtable write failed');
   }
-  return data;
+  return responseBody;
 }
 
 async function airtableList(baseId, tableId, formula, token) {
