@@ -69,9 +69,10 @@
     min-height: calc(100vh - 60px);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
   .view { display: none; }
-  .view.active { display: flex; flex-direction: column; flex: 1; }
+  .view.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
   .muted { color: #6b7280; font-size: 14px; }
 
@@ -86,6 +87,7 @@
     display: flex;
     flex-direction: column;
     flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
   .chat-header {
@@ -105,6 +107,7 @@
   }
   .chat-messages {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 20px;
     display: flex;
@@ -221,6 +224,19 @@
     padding: 32px;
     border-radius: 10px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  /* Applied only while an IT/GIS chat flow is shown (not the plain
+     Automation form) so the chat card can stretch to fill the tab. */
+  .form-wrap.chat-flow-active {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  #it-flow, #gis-flow {
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
   }
   .select-type {
     width: 100%;
@@ -664,6 +680,7 @@
 
   var requestTypeSelect = document.getElementById('request-type-select');
   var requestForm = document.getElementById('request-form');
+  var formWrapEl = document.querySelector('.form-wrap');
 
   function addField(form, f) {
     var wrap = document.createElement('div');
@@ -708,6 +725,7 @@
     var cfg = FORM_CONFIGS[type];
     document.getElementById('gis-flow').style.display = 'none';
     document.getElementById('it-flow').style.display = 'none';
+    formWrapEl.classList.remove('chat-flow-active');
     requestForm.style.display = '';
     requestForm.innerHTML = '';
     requestForm.dataset.type = type;
@@ -895,7 +913,8 @@
     requestForm.style.display = 'none';
     gisFlowEl.style.display = 'none';
     showBanner('request-banner', null);
-    itFlowEl.style.display = 'block';
+    formWrapEl.classList.add('chat-flow-active');
+    itFlowEl.style.display = 'flex';
 
     if (itFlowEl.dataset.built) return;
     itFlowEl.dataset.built = '1';
@@ -1057,7 +1076,8 @@
     requestForm.style.display = 'none';
     itFlowEl.style.display = 'none';
     showBanner('request-banner', null);
-    gisFlowEl.style.display = 'block';
+    formWrapEl.classList.add('chat-flow-active');
+    gisFlowEl.style.display = 'flex';
 
     if (gisFlowEl.dataset.built) return;
     gisFlowEl.dataset.built = '1';
