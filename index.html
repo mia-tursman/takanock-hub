@@ -15,11 +15,17 @@
     --white: #ffffff;
     --gray-bg: #f5f5f5;
     --border: #e2ddd2;
+    /* Overwritten immediately at runtime with the topbar's real measured
+       height (see setTopbarHeightVar) — this is just a same-ballpark
+       fallback for the instant before that script runs. */
+    --topbar-height: 67px;
   }
   * { box-sizing: border-box; }
   html, body {
     margin: 0;
-    overflow-x: hidden;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
   }
   body {
     font-family: 'Inter', -apple-system, sans-serif;
@@ -69,7 +75,7 @@
 
   main {
     padding: 32px 16px;
-    height: calc(100vh - 60px);
+    height: calc(100vh - var(--topbar-height));
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -421,6 +427,18 @@
 (function () {
   'use strict';
 
+  // main's height is calc(100vh - var(--topbar-height)) — measure the
+  // topbar for real instead of guessing a constant, since its rendered
+  // height varies with font metrics/loading and was the actual cause of
+  // a page ~7px taller than the viewport (a spurious scrollbar).
+  var topbarEl = document.querySelector('.topbar');
+  function setTopbarHeightVar() {
+    if (!topbarEl) return;
+    document.documentElement.style.setProperty('--topbar-height', topbarEl.offsetHeight + 'px');
+  }
+  setTopbarHeightVar();
+  window.addEventListener('resize', setTopbarHeightVar);
+
   /* ---------------------------------------------------------------
    * Nav / view switching
    * ------------------------------------------------------------- */
@@ -487,6 +505,23 @@
     container.appendChild(row);
     container.scrollTop = container.scrollHeight;
     return row;
+  }
+
+  // Appends a "Start a new request" link below a bubble row after a
+  // successful submission — replaces the old standalone "New Request"
+  // button that lived outside the chat card.
+  function appendStartNewLink(row, onClick) {
+    var actions = document.createElement('div');
+    actions.className = 'msg-actions';
+    var link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'link-toggle';
+    link.textContent = 'Start a new request';
+    link.addEventListener('click', onClick);
+    actions.appendChild(link);
+    row.appendChild(actions);
+    var container = row.parentNode;
+    if (container) container.scrollTop = container.scrollHeight;
   }
 
   function makeTyping(container) {
@@ -845,13 +880,15 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var reply;
-        if (data.error) {
-          reply = 'Sorry, something went wrong submitting your ticket. Please try again.';
-        } else {
+        var success = !data.error;
+        if (success) {
           reply = 'Your ticket has been submitted! Jacob from IT will be in touch soon.';
+        } else {
+          reply = 'Sorry, something went wrong submitting your ticket. Please try again.';
         }
         itChatHistory.push({ role: 'assistant', content: reply });
-        makeBubble(itMessagesEl, 'assistant', reply);
+        var row = makeBubble(itMessagesEl, 'assistant', reply);
+        if (success) appendStartNewLink(row, itResetChat);
       })
       .catch(function () {
         makeBubble(itMessagesEl, 'assistant', 'Sorry, something went wrong submitting your ticket. Please try again.');
@@ -930,9 +967,6 @@
           '<textarea id="it-input" class="chat-input" placeholder="Type a message..." rows="1"></textarea>' +
           '<button id="it-send" class="send-btn">Send</button>' +
         '</div>' +
-      '</div>' +
-      '<div style="text-align:center; margin-top:16px;">' +
-        '<button type="button" id="it-new-btn" class="action-btn">New Request</button>' +
       '</div>';
 
     itMessagesEl = document.getElementById('it-messages');
@@ -947,7 +981,6 @@
       }
     });
     itInputEl.addEventListener('input', function () { autoResizeTextarea(itInputEl); });
-    document.getElementById('it-new-btn').addEventListener('click', itResetChat);
 
     makeBubble(itMessagesEl, 'assistant', IT_GREETING);
   }
@@ -1008,13 +1041,15 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var reply;
-        if (data.error) {
-          reply = 'Sorry, something went wrong submitting your request. Please try again.';
-        } else {
+        var success = !data.error;
+        if (success) {
           reply = 'Your GIS request has been submitted! Jacob will be in touch soon.';
+        } else {
+          reply = 'Sorry, something went wrong submitting your request. Please try again.';
         }
         gisChatHistory.push({ role: 'assistant', content: reply });
-        makeBubble(gisMessagesEl, 'assistant', reply);
+        var row = makeBubble(gisMessagesEl, 'assistant', reply);
+        if (success) appendStartNewLink(row, gisResetChat);
       })
       .catch(function () {
         makeBubble(gisMessagesEl, 'assistant', 'Sorry, something went wrong submitting your request. Please try again.');
@@ -1093,9 +1128,6 @@
           '<textarea id="gis-input" class="chat-input" placeholder="Type a message..." rows="1"></textarea>' +
           '<button id="gis-send" class="send-btn">Send</button>' +
         '</div>' +
-      '</div>' +
-      '<div style="text-align:center; margin-top:16px;">' +
-        '<button type="button" id="gis-new-btn" class="action-btn">New Request</button>' +
       '</div>';
 
     gisMessagesEl = document.getElementById('gis-messages');
@@ -1110,7 +1142,6 @@
       }
     });
     gisInputEl.addEventListener('input', function () { autoResizeTextarea(gisInputEl); });
-    document.getElementById('gis-new-btn').addEventListener('click', gisResetChat);
 
     makeBubble(gisMessagesEl, 'assistant', GIS_GREETING);
   }
