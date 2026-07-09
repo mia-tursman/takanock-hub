@@ -104,12 +104,6 @@
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
   }
-  .chat-header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
   .chat-header h1 {
     margin: 0;
     font-size: 16px;
@@ -119,10 +113,6 @@
     margin: 4px 0 0;
     font-size: 13px;
     color: #6b7280;
-  }
-  .chat-header .link-toggle {
-    margin-top: 0;
-    white-space: nowrap;
   }
   .chat-messages {
     flex: 1;
@@ -986,18 +976,15 @@
 
     itFlowEl.innerHTML =
       '<div class="chat-container">' +
-        '<div class="chat-header">' +
-          '<div class="chat-header-top">' +
-            '<h1>IT Help Desk</h1>' +
-            '<button type="button" id="it-new-btn" class="link-toggle">New Request</button>' +
-          '</div>' +
-          '<p>Tell me what\'s going on — I\'ll gather the details and log a ticket for you.</p>' +
-        '</div>' +
+        '<div class="chat-header"><h1>IT Help Desk</h1><p>Tell me what\'s going on — I\'ll gather the details and log a ticket for you.</p></div>' +
         '<div class="chat-messages" id="it-messages"></div>' +
         '<div class="chat-input-row">' +
           '<textarea id="it-input" class="chat-input" placeholder="Type a message..." rows="1"></textarea>' +
           '<button id="it-send" class="send-btn">Send</button>' +
         '</div>' +
+      '</div>' +
+      '<div style="text-align:center; margin-top:12px;">' +
+        '<button type="button" id="it-new-btn" class="link-toggle">New Request</button>' +
       '</div>';
 
     itMessagesEl = document.getElementById('it-messages');
@@ -1155,18 +1142,15 @@
 
     gisFlowEl.innerHTML =
       '<div class="chat-container">' +
-        '<div class="chat-header">' +
-          '<div class="chat-header-top">' +
-            '<h1>GIS Request</h1>' +
-            '<button type="button" id="gis-new-btn" class="link-toggle">New Request</button>' +
-          '</div>' +
-          '<p>Tell me what you need — I\'ll gather the details and submit it for Jacob\'s team.</p>' +
-        '</div>' +
+        '<div class="chat-header"><h1>GIS Request</h1><p>Tell me what you need — I\'ll gather the details and submit it for Jacob\'s team.</p></div>' +
         '<div class="chat-messages" id="gis-messages"></div>' +
         '<div class="chat-input-row">' +
           '<textarea id="gis-input" class="chat-input" placeholder="Type a message..." rows="1"></textarea>' +
           '<button id="gis-send" class="send-btn">Send</button>' +
         '</div>' +
+      '</div>' +
+      '<div style="text-align:center; margin-top:12px;">' +
+        '<button type="button" id="gis-new-btn" class="link-toggle">New Request</button>' +
       '</div>';
 
     gisMessagesEl = document.getElementById('gis-messages');
