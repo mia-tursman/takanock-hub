@@ -495,12 +495,25 @@
     return html;
   }
 
-  function makeBubble(container, role, text) {
+  // Prompts now instruct the model to never use markdown, but this strips
+  // any that leaks through anyway — plain text, no bold/italic/code styling.
+  function stripMarkdownForDisplay(text) {
+    var html = escapeHtml(text);
+    html = html.replace(/\*\*([^*]+?)\*\*/g, '$1');
+    html = html.replace(/\*([^*]+?)\*/g, '$1');
+    html = html.replace(/`([^`]+?)`/g, '$1');
+    return html;
+  }
+
+  // allowBold is opt-in and only used by the GIS flow, whose prompt is the
+  // one exception allowed to render **bold** field labels in its
+  // pre-submission review summary.
+  function makeBubble(container, role, text, allowBold) {
     var row = document.createElement('div');
     row.className = 'msg-row ' + role;
     var bubble = document.createElement('div');
     bubble.className = 'msg';
-    bubble.innerHTML = renderMarkdownLite(text);
+    bubble.innerHTML = allowBold ? renderMarkdownLite(text) : stripMarkdownForDisplay(text);
     row.appendChild(bubble);
     container.appendChild(row);
     container.scrollTop = container.scrollHeight;
@@ -575,6 +588,7 @@
    * MODE 1: Assistant chat
    * ------------------------------------------------------------- */
   var SYSTEM_PROMPT = "You are the Takanock request router. Your only job is to identify what type of request the employee has and route them to the correct intake form, or tell them who to contact if that's all they're asking. Do not answer other questions. Do not try to solve the problem yourself.\n\n"
+    + "Never use bold text, emojis, or any markdown formatting (asterisks, headers, tables, bullet lists, code ticks). Respond in plain conversational text only.\n\n"
     + "The three intake types are:\n"
     + "- IT Help Desk: anything technology related — access, permissions, hardware, software, SharePoint, Slack, email, network, passwords\n"
     + "- GIS Request: anything maps, geospatial, data layers, site assessments, parcels, GIS\n"
@@ -844,6 +858,7 @@
    * review form — that tool doesn't have one, so neither does this.
    * ------------------------------------------------------------- */
   var IT_SYSTEM_PROMPT = "You are the Takanock IT Help Desk intake assistant. Your job is to help Takanock employees submit IT support requests conversationally.\n\n"
+    + "Never use bold text, emojis, or any markdown formatting (asterisks, headers, tables, bullet lists, code ticks). Respond in plain conversational text only.\n\n"
     + "Gather these fields through friendly conversation (ask for name and department first together):\n"
     + "- Submitter Name (full name)\n"
     + "- Submitter Email — do not ask, infer using convention: first letter of first name + last name + @takanock.com. John Smith = jsmith@takanock.com\n"
@@ -851,7 +866,7 @@
     + "- Request Type (Permissions Issue, Slack, Sharepoint, Hardware Issue, New Dataset, Other) — infer from context, do not ask directly\n"
     + "- Request Description (brief description of the issue)\n"
     + "- Urgency (Low, Medium, High, Urgent) — infer if possible, otherwise ask\n\n"
-    + "Once you have all fields, present a summary listing each field on its own line as **Field Name:** value — never as a markdown table with pipe characters — then ask the user to confirm by saying \"yes\".\n"
+    + "Once you have all fields, present a summary listing each field on its own line as Field Name: value, plain text with no bold — never as a markdown table with pipe characters — then ask the user to confirm by saying \"yes\".\n"
     + "When the user confirms, respond ONLY with this JSON and nothing else — no extra text before or after:\n"
     + "{\"submitted\":true,\"name\":\"VALUE\",\"email\":\"VALUE\",\"department\":\"VALUE\",\"requestType\":\"VALUE\",\"description\":\"VALUE\",\"urgency\":\"VALUE\"}";
 
@@ -995,6 +1010,7 @@
    * ------------------------------------------------------------- */
   var CURRENT_YEAR = new Date().getFullYear();
   var GIS_SYSTEM_PROMPT = "You are the Takanock GIS Request intake assistant. Your job is to help Takanock employees submit GIS requests conversationally for Jacob Paul's team.\n\n"
+    + "Never use bold text, emojis, or any markdown formatting (asterisks, headers, tables, bullet lists, code ticks) — plain conversational text only — with exactly one exception: the field-label summary described below, which should use **bold** field names exactly as shown there.\n\n"
     + "Gather these fields through friendly conversation (ask for name first):\n"
     + "- Requester Name (full name)\n"
     + "- Requester Email — do not ask, infer using convention: first letter of first name + last name + @takanock.com. John Smith = jsmith@takanock.com\n"
@@ -1048,11 +1064,11 @@
           reply = 'Sorry, something went wrong submitting your request. Please try again.';
         }
         gisChatHistory.push({ role: 'assistant', content: reply });
-        var row = makeBubble(gisMessagesEl, 'assistant', reply);
+        var row = makeBubble(gisMessagesEl, 'assistant', reply, true);
         if (success) appendStartNewLink(row, gisResetChat);
       })
       .catch(function () {
-        makeBubble(gisMessagesEl, 'assistant', 'Sorry, something went wrong submitting your request. Please try again.');
+        makeBubble(gisMessagesEl, 'assistant', 'Sorry, something went wrong submitting your request. Please try again.', true);
       });
   }
 
@@ -1091,11 +1107,11 @@
         }
 
         gisChatHistory.push({ role: 'assistant', content: replyText });
-        makeBubble(gisMessagesEl, 'assistant', replyText);
+        makeBubble(gisMessagesEl, 'assistant', replyText, true);
       })
       .catch(function () {
         removeTyping(gisTypingRow);
-        makeBubble(gisMessagesEl, 'assistant', 'Connection error — please try again.');
+        makeBubble(gisMessagesEl, 'assistant', 'Connection error — please try again.', true);
       })
       .then(function () {
         gisInputEl.disabled = false;
@@ -1107,7 +1123,7 @@
   function gisResetChat() {
     gisChatHistory = [];
     gisMessagesEl.innerHTML = '';
-    makeBubble(gisMessagesEl, 'assistant', GIS_GREETING);
+    makeBubble(gisMessagesEl, 'assistant', GIS_GREETING, true);
   }
 
   function renderGisIntake() {
@@ -1143,7 +1159,7 @@
     });
     gisInputEl.addEventListener('input', function () { autoResizeTextarea(gisInputEl); });
 
-    makeBubble(gisMessagesEl, 'assistant', GIS_GREETING);
+    makeBubble(gisMessagesEl, 'assistant', GIS_GREETING, true);
   }
 
   showRequestType('it');
