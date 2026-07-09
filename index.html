@@ -256,33 +256,6 @@
     font-size: 14px;
     background: var(--white);
   }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 16px;
-  }
-  .field label {
-    font-size: 13px;
-    font-weight: 600;
-  }
-  .field input,
-  .field select,
-  .field textarea {
-    padding: 10px 12px;
-    border: 1px solid #d7d2c6;
-    border-radius: 6px;
-    font-size: 14px;
-  }
-  .field textarea {
-    min-height: 90px;
-    resize: vertical;
-  }
-  .field input[type="checkbox"] {
-    width: auto;
-    padding: 0;
-    align-self: flex-start;
-  }
   .submit-btn {
     background: var(--orange);
     color: var(--white);
@@ -403,9 +376,9 @@
         <option value="gis">GIS Request</option>
         <option value="automation">Automation Idea</option>
       </select>
-      <form id="request-form"></form>
       <div id="it-flow" style="display:none;"></div>
       <div id="gis-flow" style="display:none;"></div>
+      <div id="automation-flow" style="display:none;"></div>
     </div>
   </section>
 
@@ -716,131 +689,21 @@
   /* ---------------------------------------------------------------
    * MODE 2: Submit a Request
    * ------------------------------------------------------------- */
-  var DEPARTMENTS = ['Development', 'GIS', 'Finance', 'Legal', 'HR', 'Commercial', 'Engineering', 'Operations', 'Other'];
-  var FORM_CONFIGS = {
-    automation: {
-      table: 'automation',
-      fields: [
-        { name: 'title', label: 'Title', type: 'text', required: true },
-        { name: 'businessProblem', label: 'What problem are you trying to solve?', type: 'textarea', required: false },
-        { name: 'currentProcess', label: 'How do you do this today?', type: 'textarea', required: false },
-        { name: 'description', label: 'What would the ideal solution look like?', type: 'textarea', required: false },
-        { name: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Medium', 'High', 'Urgent'], required: true }
-      ]
-    }
-  };
-
   var requestTypeSelect = document.getElementById('request-type-select');
-  var requestForm = document.getElementById('request-form');
   var formWrapEl = document.querySelector('.form-wrap');
-
-  function addField(form, f) {
-    var wrap = document.createElement('div');
-    wrap.className = 'field';
-
-    var fieldId = f.id || ('field-' + f.name);
-
-    var label = document.createElement('label');
-    label.textContent = f.label + (f.required ? ' *' : '');
-    label.htmlFor = fieldId;
-    wrap.appendChild(label);
-
-    var input;
-    if (f.type === 'select') {
-      input = document.createElement('select');
-      var blank = document.createElement('option');
-      blank.value = '';
-      blank.textContent = 'Select...';
-      input.appendChild(blank);
-      f.options.forEach(function (o) {
-        var opt = document.createElement('option');
-        opt.value = o;
-        opt.textContent = o;
-        input.appendChild(opt);
-      });
-    } else if (f.type === 'textarea') {
-      input = document.createElement('textarea');
-    } else {
-      input = document.createElement('input');
-      input.type = f.type;
-    }
-    input.id = fieldId;
-    input.name = f.name;
-    if (f.required) input.required = true;
-    if (f.listId) input.setAttribute('list', f.listId);
-    wrap.appendChild(input);
-
-    form.appendChild(wrap);
-  }
-
-  function renderRequestForm(type) {
-    var cfg = FORM_CONFIGS[type];
-    document.getElementById('gis-flow').style.display = 'none';
-    document.getElementById('it-flow').style.display = 'none';
-    formWrapEl.classList.remove('chat-flow-active');
-    requestForm.style.display = '';
-    requestForm.innerHTML = '';
-    requestForm.dataset.type = type;
-    showBanner('request-banner', null);
-
-    addField(requestForm, { name: 'name', label: 'Your Name', type: 'text', required: true });
-    addField(requestForm, { name: 'department', label: 'Department', type: 'select', options: DEPARTMENTS, required: true });
-    cfg.fields.forEach(function (f) { addField(requestForm, f); });
-
-    var submitBtn = document.createElement('button');
-    submitBtn.type = 'submit';
-    submitBtn.className = 'submit-btn';
-    submitBtn.textContent = 'Submit Request';
-    requestForm.appendChild(submitBtn);
-  }
 
   function showRequestType(type) {
     if (type === 'gis') {
       renderGisIntake();
     } else if (type === 'it') {
       renderItIntake();
-    } else {
-      renderRequestForm(type);
+    } else if (type === 'automation') {
+      renderAutomationIntake();
     }
   }
 
   requestTypeSelect.addEventListener('change', function () {
     showRequestType(requestTypeSelect.value);
-  });
-
-  requestForm.addEventListener('submit', function (e) {
-    e.preventDefault();
-    var type = requestForm.dataset.type;
-    var record = {};
-    new FormData(requestForm).forEach(function (v, k) { record[k] = v; });
-
-    var btn = requestForm.querySelector('.submit-btn');
-    btn.disabled = true;
-    btn.textContent = 'Submitting...';
-    showBanner('request-banner', null);
-
-    fetch('/api/proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ airtable_record: record, table: type })
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data.error) {
-          showBanner('request-banner', 'error', typeof data.error === 'string' ? data.error : (data.error.message || 'Unable to submit your request. Please try again.'));
-          return;
-        }
-        var id = data.id || (data.record && data.record.id) || data.recordId || 'unknown';
-        showBanner('request-banner', 'success', 'Your request has been submitted. Your ticket ID is ' + id + '.');
-        renderRequestForm(type);
-      })
-      .catch(function () {
-        showBanner('request-banner', 'error', 'Unable to submit your request. Please try again.');
-      })
-      .then(function () {
-        var btnAfter = requestForm.querySelector('.submit-btn');
-        if (btnAfter) { btnAfter.disabled = false; btnAfter.textContent = 'Submit Request'; }
-      });
   });
 
   function openIntakeForm(type) {
@@ -965,8 +828,8 @@
   }
 
   function renderItIntake() {
-    requestForm.style.display = 'none';
     gisFlowEl.style.display = 'none';
+    automationFlowEl.style.display = 'none';
     showBanner('request-banner', null);
     formWrapEl.classList.add('chat-flow-active');
     itFlowEl.style.display = 'flex';
@@ -1131,8 +994,8 @@
   }
 
   function renderGisIntake() {
-    requestForm.style.display = 'none';
     itFlowEl.style.display = 'none';
+    automationFlowEl.style.display = 'none';
     showBanner('request-banner', null);
     formWrapEl.classList.add('chat-flow-active');
     gisFlowEl.style.display = 'flex';
@@ -1168,6 +1031,164 @@
     document.getElementById('gis-new-btn').addEventListener('click', gisResetChat);
 
     makeBubble(gisMessagesEl, 'assistant', GIS_GREETING, true);
+  }
+
+  /* ---------------------------------------------------------------
+   * Automation Idea: chat intake
+   * Same pattern as IT/GIS: pure conversational intake — the assistant
+   * gathers fields, presents a summary, and on user confirmation ("yes")
+   * responds with a raw JSON object that the client parses and submits
+   * directly.
+   * ------------------------------------------------------------- */
+  var AUTOMATION_SYSTEM_PROMPT = "You are the Takanock Automation Idea intake assistant. Your job is to help Takanock employees submit automation ideas conversationally for Ivan Benavides to review.\n\n"
+    + "Never use bold text, emojis, or any markdown formatting (asterisks, headers, tables, bullet lists, code ticks) — plain conversational text only — with exactly one exception: the field-label summary described below, which should use **bold** field names exactly as shown there.\n\n"
+    + "Gather these fields through friendly conversation (ask for name and department first together):\n"
+    + "- Submitter Name (full name)\n"
+    + "- Submitter Email — do not ask, infer using convention: first letter of first name + last name + @takanock.com. John Smith = jsmith@takanock.com\n"
+    + "- Department (Finance, Development, Engineering, Operations, GIS, Executive, Other)\n"
+    + "- Title — a short name for the automation idea\n"
+    + "- Description — what they want automated\n"
+    + "- Business Problem — what problem this solves\n"
+    + "- Current Process — how they do it today\n"
+    + "- Submitter Priority (Low, Medium, High, Urgent) — infer if possible, otherwise ask\n\n"
+    + "Once you have all fields, present a summary listing each field on its own line as **Field Name:** value — never as a markdown table with pipe characters — then ask the user to confirm by saying \"yes\".\n"
+    + "When the user confirms, respond ONLY with this JSON and nothing else — no extra text before or after:\n"
+    + "{\"submitted\":true,\"name\":\"VALUE\",\"department\":\"VALUE\",\"title\":\"VALUE\",\"description\":\"VALUE\",\"businessProblem\":\"VALUE\",\"currentProcess\":\"VALUE\",\"priority\":\"VALUE\"}";
+
+  var automationChatHistory = [];
+  var automationMessagesEl = null;
+  var automationInputEl = null;
+  var automationSendEl = null;
+  var automationTypingRow = null;
+  var automationFlowEl = document.getElementById('automation-flow');
+  var AUTOMATION_GREETING = "Got an automation idea? Tell me what you're trying to automate and I'll get it logged for Ivan to review.";
+
+  function automationSubmitTicket(parsed) {
+    var record = {
+      name: parsed.name || '',
+      department: parsed.department || '',
+      title: parsed.title || '',
+      description: parsed.description || '',
+      businessProblem: parsed.businessProblem || '',
+      currentProcess: parsed.currentProcess || '',
+      priority: parsed.priority || ''
+    };
+
+    return fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ airtable_record: record, table: 'automation' })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var reply;
+        var success = !data.error;
+        if (success) {
+          reply = 'Your automation idea has been submitted! Ivan will review it soon.';
+        } else {
+          reply = 'Sorry, something went wrong submitting your idea. Please try again.';
+        }
+        automationChatHistory.push({ role: 'assistant', content: reply });
+        var row = makeBubble(automationMessagesEl, 'assistant', reply, true);
+        if (success) appendStartNewLink(row, automationResetChat);
+      })
+      .catch(function () {
+        makeBubble(automationMessagesEl, 'assistant', 'Sorry, something went wrong submitting your idea. Please try again.', true);
+      });
+  }
+
+  function automationSendMessage() {
+    var text = automationInputEl.value.trim();
+    if (!text) return;
+
+    makeBubble(automationMessagesEl, 'user', text);
+    automationChatHistory.push({ role: 'user', content: text });
+    automationInputEl.value = '';
+    autoResizeTextarea(automationInputEl);
+    automationInputEl.disabled = true;
+    automationSendEl.disabled = true;
+    automationTypingRow = makeTyping(automationMessagesEl);
+
+    fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: automationChatHistory,
+        system: AUTOMATION_SYSTEM_PROMPT,
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000
+      })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        removeTyping(automationTypingRow);
+        var replyText = extractReplyText(data);
+
+        var parsed = null;
+        try { parsed = JSON.parse(replyText.trim()); } catch (e) { /* not the final JSON — a normal chat reply */ }
+
+        if (parsed && parsed.submitted === true) {
+          return automationSubmitTicket(parsed);
+        }
+
+        automationChatHistory.push({ role: 'assistant', content: replyText });
+        makeBubble(automationMessagesEl, 'assistant', replyText, true);
+      })
+      .catch(function () {
+        removeTyping(automationTypingRow);
+        makeBubble(automationMessagesEl, 'assistant', 'Connection error — please try again.', true);
+      })
+      .then(function () {
+        automationInputEl.disabled = false;
+        automationSendEl.disabled = false;
+        automationInputEl.focus();
+      });
+  }
+
+  function automationResetChat() {
+    automationChatHistory = [];
+    automationMessagesEl.innerHTML = '';
+    makeBubble(automationMessagesEl, 'assistant', AUTOMATION_GREETING, true);
+  }
+
+  function renderAutomationIntake() {
+    itFlowEl.style.display = 'none';
+    gisFlowEl.style.display = 'none';
+    showBanner('request-banner', null);
+    formWrapEl.classList.add('chat-flow-active');
+    automationFlowEl.style.display = 'flex';
+
+    if (automationFlowEl.dataset.built) return;
+    automationFlowEl.dataset.built = '1';
+
+    automationFlowEl.innerHTML =
+      '<div class="chat-container">' +
+        '<div class="chat-header"><h1>Automation Idea</h1><p>Tell me what you want automated — I\'ll gather the details and log it for Ivan.</p></div>' +
+        '<div class="chat-messages" id="automation-messages"></div>' +
+        '<div class="chat-input-row">' +
+          '<textarea id="automation-input" class="chat-input" placeholder="Type a message..." rows="1"></textarea>' +
+          '<button id="automation-send" class="send-btn">Send</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="text-align:center; margin-top:12px;">' +
+        '<button type="button" id="automation-new-btn" class="link-toggle">New Request</button>' +
+      '</div>';
+
+    automationMessagesEl = document.getElementById('automation-messages');
+    automationInputEl = document.getElementById('automation-input');
+    automationSendEl = document.getElementById('automation-send');
+
+    automationSendEl.addEventListener('click', automationSendMessage);
+    automationInputEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        automationSendMessage();
+      }
+    });
+    automationInputEl.addEventListener('input', function () { autoResizeTextarea(automationInputEl); });
+    document.getElementById('automation-new-btn').addEventListener('click', automationResetChat);
+
+    makeBubble(automationMessagesEl, 'assistant', AUTOMATION_GREETING, true);
   }
 
   showRequestType('it');
