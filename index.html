@@ -190,6 +190,10 @@
     border: 1px solid #d7d2c6;
     border-radius: 6px;
     font-size: 14px;
+    font-family: inherit;
+    line-height: 1.4;
+    resize: none;
+    overflow-y: hidden;
   }
   .send-btn {
     background: var(--orange);
@@ -354,7 +358,7 @@
       </div>
       <div class="chat-messages" id="chat-messages"></div>
       <div class="chat-input-row">
-        <input type="text" id="chat-input" class="chat-input" placeholder="Type a message..." autocomplete="off" />
+        <textarea id="chat-input" class="chat-input" placeholder="Type a message..." rows="1"></textarea>
         <button id="chat-send" class="send-btn">Send</button>
       </div>
     </div>
@@ -477,6 +481,22 @@
     if (row && row.parentNode) row.parentNode.removeChild(row);
   }
 
+  // Grows a chat input textarea with its content, capped at 5 lines —
+  // reset to auto first so shrinking (e.g. after clearing on send) works.
+  var TEXTAREA_MAX_ROWS = 5;
+  function autoResizeTextarea(el) {
+    var style = getComputedStyle(el);
+    var lineHeight = parseFloat(style.lineHeight) || 20;
+    var verticalExtra = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+      + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    var maxHeight = lineHeight * TEXTAREA_MAX_ROWS + verticalExtra;
+
+    el.style.height = 'auto';
+    var newHeight = Math.min(el.scrollHeight, maxHeight);
+    el.style.height = newHeight + 'px';
+    el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }
+
   function extractReplyText(data) {
     if (!data) return "Sorry, I didn't get a response. Please try again.";
     if (typeof data === 'string') return data;
@@ -585,6 +605,7 @@
     renderBubble('user', text);
     chatHistory.push({ role: 'user', content: text });
     chatInputEl.value = '';
+    autoResizeTextarea(chatInputEl);
     setChatDisabled(true);
     showTyping();
 
@@ -616,8 +637,12 @@
 
   chatSendEl.addEventListener('click', sendMessage);
   chatInputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') sendMessage();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   });
+  chatInputEl.addEventListener('input', function () { autoResizeTextarea(chatInputEl); });
 
   renderBubble('assistant', "Hi, I'm the Takanock Assistant. What do you need help with today? Describe your problem and I'll get you to the right place — or tell you who to ask.");
 
@@ -771,7 +796,7 @@
     + "- Request Type (Permissions Issue, Slack, Sharepoint, Hardware Issue, New Dataset, Other) — infer from context, do not ask directly\n"
     + "- Request Description (brief description of the issue)\n"
     + "- Urgency (Low, Medium, High, Urgent) — infer if possible, otherwise ask\n\n"
-    + "Once you have all fields, present a summary and ask the user to confirm by saying \"yes\".\n"
+    + "Once you have all fields, present a summary listing each field on its own line as **Field Name:** value — never as a markdown table with pipe characters — then ask the user to confirm by saying \"yes\".\n"
     + "When the user confirms, respond ONLY with this JSON and nothing else — no extra text before or after:\n"
     + "{\"submitted\":true,\"name\":\"VALUE\",\"email\":\"VALUE\",\"department\":\"VALUE\",\"requestType\":\"VALUE\",\"description\":\"VALUE\",\"urgency\":\"VALUE\"}";
 
@@ -820,6 +845,7 @@
     makeBubble(itMessagesEl, 'user', text);
     itChatHistory.push({ role: 'user', content: text });
     itInputEl.value = '';
+    autoResizeTextarea(itInputEl);
     itInputEl.disabled = true;
     itSendEl.disabled = true;
     itTypingRow = makeTyping(itMessagesEl);
@@ -876,11 +902,11 @@
     itFlowEl.dataset.built = '1';
 
     itFlowEl.innerHTML =
-      '<div class="chat-container" style="height:480px;">' +
+      '<div class="chat-container">' +
         '<div class="chat-header"><h1>IT Help Desk</h1><p>Tell me what\'s going on — I\'ll gather the details and log a ticket for you.</p></div>' +
         '<div class="chat-messages" id="it-messages"></div>' +
         '<div class="chat-input-row">' +
-          '<input type="text" id="it-input" class="chat-input" placeholder="Type a message..." autocomplete="off" />' +
+          '<textarea id="it-input" class="chat-input" placeholder="Type a message..." rows="1"></textarea>' +
           '<button id="it-send" class="send-btn">Send</button>' +
         '</div>' +
       '</div>' +
@@ -893,7 +919,13 @@
     itSendEl = document.getElementById('it-send');
 
     itSendEl.addEventListener('click', itSendMessage);
-    itInputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') itSendMessage(); });
+    itInputEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        itSendMessage();
+      }
+    });
+    itInputEl.addEventListener('input', function () { autoResizeTextarea(itInputEl); });
     document.getElementById('it-new-btn').addEventListener('click', itResetChat);
 
     makeBubble(itMessagesEl, 'assistant', IT_GREETING);
@@ -922,7 +954,7 @@
     + "Keep the description open-ended and detailed rather than steering to rigid categories. Ask one or two questions at a time, don't interrogate.\n\n"
     + "When converting Presentation Date or Finalize By Date to YYYY-MM-DD format, if the requester doesn't mention a year, assume the current year, " + CURRENT_YEAR + " (e.g. \"July 20\" becomes \"" + CURRENT_YEAR + "-07-20\"). Only use a different year if the requester explicitly states one.\n\n"
     + "After you have gathered everything else above, ask this exact question before wrapping up: \"Do you have any relevant files? If so, paste a SharePoint or OneDrive link and I'll include it. If not, you can send files directly to jpaul@takanock.com after submitting.\" If they share a link, use it as the Presentation Link. If they say no, skip it, or don't have one, leave Presentation Link blank — do not ask again.\n\n"
-    + "Once you have all fields, present a summary and ask the user to confirm by saying \"yes\".\n"
+    + "Once you have all fields, present a summary listing each field on its own line as **Field Name:** value — never as a markdown table with pipe characters — then ask the user to confirm by saying \"yes\".\n"
     + "When the user confirms, respond ONLY with this JSON and nothing else — no extra text before or after:\n"
     + "{\"submitted\":true,\"requesterName\":\"VALUE\",\"project\":\"VALUE\",\"requestType\":\"VALUE\",\"description\":\"VALUE\",\"newDataSourceNeeded\":true,\"presentationLink\":\"VALUE\",\"presentationDate\":\"VALUE\",\"finalizeByDate\":\"VALUE\",\"priority\":\"VALUE\"}";
 
@@ -975,6 +1007,7 @@
     makeBubble(gisMessagesEl, 'user', text);
     gisChatHistory.push({ role: 'user', content: text });
     gisInputEl.value = '';
+    autoResizeTextarea(gisInputEl);
     gisInputEl.disabled = true;
     gisSendEl.disabled = true;
     gisTypingRow = makeTyping(gisMessagesEl);
@@ -1031,11 +1064,11 @@
     gisFlowEl.dataset.built = '1';
 
     gisFlowEl.innerHTML =
-      '<div class="chat-container" style="height:480px;">' +
+      '<div class="chat-container">' +
         '<div class="chat-header"><h1>GIS Request</h1><p>Tell me what you need — I\'ll gather the details and submit it for Jacob\'s team.</p></div>' +
         '<div class="chat-messages" id="gis-messages"></div>' +
         '<div class="chat-input-row">' +
-          '<input type="text" id="gis-input" class="chat-input" placeholder="Type a message..." autocomplete="off" />' +
+          '<textarea id="gis-input" class="chat-input" placeholder="Type a message..." rows="1"></textarea>' +
           '<button id="gis-send" class="send-btn">Send</button>' +
         '</div>' +
       '</div>' +
@@ -1048,7 +1081,13 @@
     gisSendEl = document.getElementById('gis-send');
 
     gisSendEl.addEventListener('click', gisSendMessage);
-    gisInputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') gisSendMessage(); });
+    gisInputEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        gisSendMessage();
+      }
+    });
+    gisInputEl.addEventListener('input', function () { autoResizeTextarea(gisInputEl); });
     document.getElementById('gis-new-btn').addEventListener('click', gisResetChat);
 
     makeBubble(gisMessagesEl, 'assistant', GIS_GREETING);
