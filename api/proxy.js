@@ -173,6 +173,7 @@ async function handleSubmit(record, table, res) {
       'Submitted Date': now.slice(0, 10)
     };
     if (record.referenceLinks) fields['Reference Links'] = record.referenceLinks;
+    if (record.otherStakeholders) fields['Other Stakeholders'] = record.otherStakeholders;
 
     const data = await airtableCreate(BASE, AUTO_TABLE, fields);
     return res.status(200).json({ id: data.id });

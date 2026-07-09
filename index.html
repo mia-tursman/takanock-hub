@@ -1052,10 +1052,11 @@
     + "- Business Problem — the problem this solves, written as one or two clear sentences\n"
     + "- Current Process — how they do this today, described in plain terms\n"
     + "- Submitter Priority (Low, Medium, High, Urgent) — infer if possible, otherwise ask\n\n"
+    + "- Other Stakeholders — do not ask directly. Throughout the conversation, watch for any other names, teams, or email addresses the person mentions as affected by or involved in this idea (e.g. \"this affects Jacob and the GIS team\" or \"Emily Davies would need to be involved\") and capture them here. Leave blank if no one else is ever mentioned.\n\n"
     + "After you have gathered everything else above, ask this exact question before presenting the summary: \"Are there any relevant documents or data sources Ivan should reference when scoping this out? You can paste a link here (preferred), describe the file, or share it directly with ibenavides@takanock.com.\" If they share a link or description, use it as Reference Links. If they say no, skip it, or don't have one, leave Reference Links blank — do not ask again.\n\n"
     + "Once you have all fields, present a summary listing each field on its own line as **Field Name:** value — never as a markdown table with pipe characters — then ask the user to confirm by saying \"yes\".\n"
     + "When the user confirms, respond ONLY with this JSON and nothing else — no extra text before or after:\n"
-    + "{\"submitted\":true,\"name\":\"VALUE\",\"department\":\"VALUE\",\"title\":\"VALUE\",\"description\":\"VALUE\",\"businessProblem\":\"VALUE\",\"currentProcess\":\"VALUE\",\"priority\":\"VALUE\",\"referenceLinks\":\"VALUE\"}";
+    + "{\"submitted\":true,\"name\":\"VALUE\",\"department\":\"VALUE\",\"title\":\"VALUE\",\"description\":\"VALUE\",\"businessProblem\":\"VALUE\",\"currentProcess\":\"VALUE\",\"priority\":\"VALUE\",\"referenceLinks\":\"VALUE\",\"otherStakeholders\":\"VALUE\"}";
 
   var automationChatHistory = [];
   var automationMessagesEl = null;
@@ -1074,7 +1075,8 @@
       businessProblem: parsed.businessProblem || '',
       currentProcess: parsed.currentProcess || '',
       priority: parsed.priority || '',
-      referenceLinks: parsed.referenceLinks || ''
+      referenceLinks: parsed.referenceLinks || '',
+      otherStakeholders: parsed.otherStakeholders || ''
     };
 
     return fetch('/api/proxy', {
