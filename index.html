@@ -1052,9 +1052,10 @@
     + "- Business Problem — the problem this solves, written as one or two clear sentences\n"
     + "- Current Process — how they do this today, described in plain terms\n"
     + "- Submitter Priority (Low, Medium, High, Urgent) — infer if possible, otherwise ask\n\n"
+    + "After you have gathered everything else above, ask this exact question before presenting the summary: \"Are there any relevant documents or data sources Ivan should reference when scoping this out? You can paste a link here (preferred), describe the file, or share it directly with ibenavides@takanock.com.\" If they share a link or description, use it as Reference Links. If they say no, skip it, or don't have one, leave Reference Links blank — do not ask again.\n\n"
     + "Once you have all fields, present a summary listing each field on its own line as **Field Name:** value — never as a markdown table with pipe characters — then ask the user to confirm by saying \"yes\".\n"
     + "When the user confirms, respond ONLY with this JSON and nothing else — no extra text before or after:\n"
-    + "{\"submitted\":true,\"name\":\"VALUE\",\"department\":\"VALUE\",\"title\":\"VALUE\",\"description\":\"VALUE\",\"businessProblem\":\"VALUE\",\"currentProcess\":\"VALUE\",\"priority\":\"VALUE\"}";
+    + "{\"submitted\":true,\"name\":\"VALUE\",\"department\":\"VALUE\",\"title\":\"VALUE\",\"description\":\"VALUE\",\"businessProblem\":\"VALUE\",\"currentProcess\":\"VALUE\",\"priority\":\"VALUE\",\"referenceLinks\":\"VALUE\"}";
 
   var automationChatHistory = [];
   var automationMessagesEl = null;
@@ -1072,7 +1073,8 @@
       description: parsed.description || '',
       businessProblem: parsed.businessProblem || '',
       currentProcess: parsed.currentProcess || '',
-      priority: parsed.priority || ''
+      priority: parsed.priority || '',
+      referenceLinks: parsed.referenceLinks || ''
     };
 
     return fetch('/api/proxy', {
