@@ -169,6 +169,7 @@ async function handleSubmit(record, table, res) {
       'Business Problem': record.businessProblem || '',
       'Current Process': record.currentProcess || '',
       'Submitter Priority': record.priority || '',
+      'Status': 'New',
       'Submitted Date': now.slice(0, 10)
     };
     const data = await airtableCreate(BASE, AUTO_TABLE, fields);
