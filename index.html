@@ -17,8 +17,11 @@
     --border: #e2ddd2;
   }
   * { box-sizing: border-box; }
-  body {
+  html, body {
     margin: 0;
+    overflow-x: hidden;
+  }
+  body {
     font-family: 'Inter', -apple-system, sans-serif;
     background: var(--gray-bg);
     color: var(--navy);
@@ -65,14 +68,14 @@
   }
 
   main {
-    padding: 32px 16px 64px;
-    min-height: calc(100vh - 60px);
+    padding: 32px 16px;
+    height: calc(100vh - 60px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
   .view { display: none; }
-  .view.active { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .view.active { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
 
   .muted { color: #6b7280; font-size: 14px; }
 
@@ -351,7 +354,7 @@
     .topbar { padding: 14px 16px; }
     .tabs { gap: 16px; }
     .tab { font-size: 13px; }
-    main { padding: 20px 12px 48px; }
+    main { padding: 20px 12px; }
     .form-wrap { padding: 20px; }
     .msg { max-width: 88%; }
   }
