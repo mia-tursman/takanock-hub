@@ -14,12 +14,11 @@ function truncate(s, n) {
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'America/New_York'
-  });
+  // Take just the date portion (YYYY-MM-DD) to avoid timezone shifts
+  const datePart = dateStr.split('T')[0];
+  const [year, month, day] = datePart.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[parseInt(month) - 1] + ' ' + parseInt(day);
 }
 
 function statusBadgeClass(status) {
