@@ -51,6 +51,14 @@ export default function ITChat() {
     }
   }, []);
 
+  useEffect(() => {
+    setTimeout(() => {
+      if (messagesRef.current) {
+        messagesRef.current.scrollTop = 0;
+      }
+    }, 100);
+  }, []);
+
   function resetChat() {
     setHistory([]);
     setMessages([{ role: 'assistant', text: IT_GREETING }]);
