@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Head from 'next/head';
 import NavBar from '../components/NavBar';
 import ChatInterface from '../components/ChatInterface';
@@ -10,20 +10,6 @@ import TicketLookup from '../components/TicketLookup';
 export default function Home() {
   const [activeView, setActiveView] = useState('assistant');
   const [requestType, setRequestType] = useState('it');
-
-  // main's height is calc(100vh - var(--topbar-height)) — measure the
-  // topbar for real instead of guessing a constant, since its rendered
-  // height varies with font metrics/loading.
-  useEffect(() => {
-    const topbarEl = document.querySelector('.topbar');
-    function setTopbarHeightVar() {
-      if (!topbarEl) return;
-      document.documentElement.style.setProperty('--topbar-height', topbarEl.offsetHeight + 'px');
-    }
-    setTopbarHeightVar();
-    window.addEventListener('resize', setTopbarHeightVar);
-    return () => window.removeEventListener('resize', setTopbarHeightVar);
-  }, []);
 
   function openIntakeForm(type) {
     setActiveView('request');
@@ -58,13 +44,22 @@ export default function Home() {
               <option value="gis">GIS Request</option>
               <option value="automation">Automation Idea</option>
             </select>
-            <div id="it-flow" style={{ display: requestType === 'it' ? 'flex' : 'none' }}>
+            <div
+              id="it-flow"
+              style={{ display: requestType === 'it' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}
+            >
               <ITChat />
             </div>
-            <div id="gis-flow" style={{ display: requestType === 'gis' ? 'flex' : 'none' }}>
+            <div
+              id="gis-flow"
+              style={{ display: requestType === 'gis' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}
+            >
               <GISChat />
             </div>
-            <div id="automation-flow" style={{ display: requestType === 'automation' ? 'flex' : 'none' }}>
+            <div
+              id="automation-flow"
+              style={{ display: requestType === 'automation' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}
+            >
               <AutomationChat />
             </div>
           </div>
