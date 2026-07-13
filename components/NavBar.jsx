@@ -7,7 +7,7 @@ const TABS = [
 export default function NavBar({ activeView, onChangeView }) {
   return (
     <header className="topbar">
-      <img src="/takanock-logo.png" alt="Takanock" style={{ height: '32px', width: 'auto' }} />
+      <img src="/takanock-logo.png" alt="Takanock" style={{ height: '24px', width: 'auto' }} />
       <nav className="tabs">
         {TABS.map((t) => (
           <button
