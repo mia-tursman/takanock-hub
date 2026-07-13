@@ -1,9 +1,9 @@
 :root {
-  --navy: #1a2744;
-  --orange: #e8400a;
-  --cream: #f0ebe0;
+  --navy: #0A2350;
+  --orange: #FF5C35;
+  --cream: #F7F5F0;
   --white: #ffffff;
-  --gray-bg: #f5f5f5;
+  --gray-bg: #F7F5F0;
   --border: #e2ddd2;
 }
 * { box-sizing: border-box; }
@@ -14,7 +14,7 @@ html, body {
   overflow: hidden;
 }
 body {
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: 'Archivo', -apple-system, sans-serif;
   background: var(--gray-bg);
   color: var(--navy);
 }
