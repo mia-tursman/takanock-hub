@@ -30,6 +30,7 @@ export default function ITChat() {
 
   const messagesRef = useRef(null);
   const inputRef = useRef(null);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
@@ -38,6 +39,17 @@ export default function ITChat() {
   useEffect(() => {
     autoResizeTextarea(inputRef.current);
   }, [inputValue]);
+
+  // Forces a layout reflow on mount, which fixes the input row clipping
+  // that only appears before the first message is sent.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container) {
+      container.style.display = 'none';
+      void container.offsetHeight; // force reflow
+      container.style.display = 'flex';
+    }
+  }, []);
 
   function resetChat() {
     setHistory([]);
@@ -126,7 +138,7 @@ export default function ITChat() {
 
   return (
     <>
-      <div className="chat-container">
+      <div className="chat-container" ref={containerRef}>
         <div className="chat-header">
           <h1>IT Help Desk</h1>
           <p>Tell me what's going on — I'll gather the details and log a ticket for you.</p>
