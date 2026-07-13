@@ -185,9 +185,12 @@ main {
   align-items: flex-end;
   flex-shrink: 0;
   gap: 8px;
-  margin-top: 12px;
   padding: 16px 16px 20px;
   border-top: 1px solid var(--border);
+  position: sticky;
+  bottom: 0;
+  background: var(--white);
+  z-index: 1;
 }
 .chat-input {
   flex: 1;
