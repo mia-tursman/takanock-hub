@@ -194,6 +194,7 @@ main {
 }
 .chat-input {
   flex: 1;
+  height: 40px;
   padding: 10px 14px;
   border: 1px solid #d7d2c6;
   border-radius: 6px;

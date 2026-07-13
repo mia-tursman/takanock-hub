@@ -173,7 +173,6 @@ export default function AutomationChat() {
             disabled={disabled}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            style={{ height: '100%' }}
           />
           <button className="send-btn" disabled={disabled} onClick={sendMessage}>Send</button>
         </div>
