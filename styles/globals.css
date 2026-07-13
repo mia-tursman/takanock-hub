@@ -34,12 +34,6 @@ button, input, select, textarea { font-family: inherit; }
   flex-wrap: wrap;
   gap: 12px;
 }
-.logo {
-  font-weight: 700;
-  font-size: 20px;
-  color: var(--navy);
-  letter-spacing: 0.3px;
-}
 .tabs {
   display: flex;
   gap: 28px;
