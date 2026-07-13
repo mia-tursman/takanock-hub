@@ -99,6 +99,9 @@ export default function ITChat() {
     const newHistory = [...history, { role: 'user', content: text }];
     setHistory(newHistory);
     setInputValue('');
+    if (inputRef.current) {
+      inputRef.current.style.height = '40px';
+    }
     setDisabled(true);
     setTyping(true);
 
