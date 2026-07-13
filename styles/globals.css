@@ -7,16 +7,13 @@
   --border: #e2ddd2;
 }
 * { box-sizing: border-box; }
-html {
-  height: 100%;
-}
-body {
+html, body {
   margin: 0;
   padding: 0;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
+}
+body {
   font-family: 'Inter', -apple-system, sans-serif;
   background: var(--gray-bg);
   color: var(--navy);
@@ -25,7 +22,6 @@ button, input, select, textarea { font-family: inherit; }
 
 /* Top bar */
 .topbar {
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -65,8 +61,7 @@ button, input, select, textarea { font-family: inherit; }
 
 main {
   padding: 32px 16px;
-  flex: 1;
-  min-height: 0;
+  height: calc(100vh - 67px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
