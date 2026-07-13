@@ -95,13 +95,36 @@ export default function ITChat() {
     const text = inputValue.trim();
     if (!text) return;
 
+    const isFirstMessage = history.length === 0;
+
     setMessages((prev) => [...prev, { role: 'user', text }]);
-    const newHistory = [...history, { role: 'user', content: text }];
-    setHistory(newHistory);
     setInputValue('');
     if (inputRef.current) {
       inputRef.current.style.height = '40px';
     }
+
+    // Hidden test mode: typing "/test" as the very first message skips the
+    // conversation entirely and submits a placeholder record, to quickly
+    // verify Airtable connectivity without a full chat run.
+    if (isFirstMessage && text.toLowerCase() === '/test') {
+      setDisabled(true);
+      submitTicket({
+        name: 'Test User',
+        department: 'Operations',
+        requestType: 'Test submission',
+        description: 'This is an automated test submission',
+        urgency: 'Low'
+      }).then(() => {
+        setDisabled(false);
+        setTimeout(() => {
+          if (inputRef.current) inputRef.current.focus();
+        }, 50);
+      });
+      return;
+    }
+
+    const newHistory = [...history, { role: 'user', content: text }];
+    setHistory(newHistory);
     setDisabled(true);
     setTyping(true);
 
