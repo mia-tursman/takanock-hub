@@ -129,7 +129,9 @@ export default function GISChat() {
       })
       .then(() => {
         setDisabled(false);
-        if (inputRef.current) inputRef.current.focus();
+        setTimeout(() => {
+          if (inputRef.current) inputRef.current.focus();
+        }, 50);
       });
   }
 

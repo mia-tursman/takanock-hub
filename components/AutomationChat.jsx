@@ -121,7 +121,9 @@ export default function AutomationChat() {
       })
       .then(() => {
         setDisabled(false);
-        if (inputRef.current) inputRef.current.focus();
+        setTimeout(() => {
+          if (inputRef.current) inputRef.current.focus();
+        }, 50);
       });
   }
 
