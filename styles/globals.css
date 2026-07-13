@@ -61,7 +61,7 @@ button, input, select, textarea { font-family: inherit; }
 
 main {
   padding: 32px 16px;
-  height: calc(100vh - 67px);
+  height: calc(100vh - var(--topbar-height, 67px));
   display: flex;
   flex-direction: column;
   overflow: hidden;

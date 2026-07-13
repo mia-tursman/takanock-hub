@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import NavBar from '../components/NavBar';
 import ChatInterface from '../components/ChatInterface';
@@ -10,6 +10,16 @@ import TicketLookup from '../components/TicketLookup';
 export default function Home() {
   const [activeView, setActiveView] = useState('assistant');
   const [requestType, setRequestType] = useState('it');
+
+  // main's height is calc(100vh - var(--topbar-height, 67px)) — measure
+  // the topbar for real instead of relying solely on the 67px fallback,
+  // since its rendered height varies with font metrics/loading.
+  useEffect(() => {
+    const topbar = document.querySelector('.topbar');
+    if (topbar) {
+      document.documentElement.style.setProperty('--topbar-height', topbar.offsetHeight + 'px');
+    }
+  }, []);
 
   function openIntakeForm(type) {
     setActiveView('request');
