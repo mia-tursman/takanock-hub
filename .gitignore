@@ -24,5 +24,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# next-pwa generated service worker files
+/public/sw.js
+/public/workbox-*.js
+/public/fallback-*.js
+
 # typescript
 *.tsbuildinfo
