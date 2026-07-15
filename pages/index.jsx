@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import NavBar from '../components/NavBar';
+import RequestTypeSelect from '../components/RequestTypeSelect';
 import ChatInterface from '../components/ChatInterface';
 import ITChat from '../components/ITChat';
 import GISChat from '../components/GISChat';
@@ -44,16 +45,7 @@ export default function Home() {
         <section id="view-request" className={'view' + (activeView === 'request' ? ' active' : '')}>
           <div className="form-wrap chat-flow-active">
             <div id="request-banner"></div>
-            <select
-              id="request-type-select"
-              className="select-type"
-              value={requestType}
-              onChange={(e) => setRequestType(e.target.value)}
-            >
-              <option value="it">IT Help Desk</option>
-              <option value="gis">GIS Request</option>
-              <option value="automation">Automation Idea</option>
-            </select>
+            <RequestTypeSelect value={requestType} onChange={setRequestType} />
             <div
               id="it-flow"
               style={{ display: requestType === 'it' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}
