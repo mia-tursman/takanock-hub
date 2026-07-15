@@ -241,8 +241,8 @@ async function summarizeRequests(tickets) {
 
 async function handleLookup(email, res) {
   const safeEmail = String(email).replace(/"/g, '\\"');
-  const submitterFormula = `AND(LOWER({Submitter Email})=LOWER("${safeEmail}"), NOT({Status}="Closed"), NOT({Status}="Resolved"), NOT({Status}="Complete"))`;
-  const requesterFormula = `AND(LOWER({Requester Email})=LOWER("${safeEmail}"), NOT({Status}="Closed"), NOT({Status}="Resolved"), NOT({Status}="Complete"))`;
+  const submitterFormula = `LOWER({Submitter Email})=LOWER("${safeEmail}")`;
+  const requesterFormula = `LOWER({Requester Email})=LOWER("${safeEmail}")`;
 
   // Each table is queried independently and fails silently on its own — a
   // permissions error on one table should never block results from the others.
