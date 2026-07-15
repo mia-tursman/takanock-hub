@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { autoResizeTextarea, extractReplyText, stripMarkdownForDisplay } from '../lib/chatHelpers';
+import { autoResizeTextarea, extractReplyText, renderMarkdownLite, stripMarkdownForDisplay } from '../lib/chatHelpers';
 
 // Matches the existing tak-it-help.vercel.app tool's behavior exactly:
 // pure conversational intake — the assistant gathers fields, presents
@@ -7,7 +7,8 @@ import { autoResizeTextarea, extractReplyText, stripMarkdownForDisplay } from '.
 // object that the client parses and submits directly. No separate
 // review form — that tool doesn't have one, so neither does this.
 const IT_SYSTEM_PROMPT = "You are the Takanock IT Help Desk intake assistant. Your job is to help Takanock employees submit IT support requests conversationally.\n\n"
-  + "Never use bold text, emojis, or any markdown formatting (asterisks, headers, tables, bullet lists, code ticks). Respond in plain conversational text only.\n\n"
+  + "Act like a business analyst taking notes, not a transcription service. Ask follow-up questions until you have enough detail to write each field properly, then rewrite what the person told you into clear, professional language — do not copy their exact words verbatim into the fields.\n\n"
+  + "Never use bold text, emojis, or any markdown formatting (asterisks, headers, tables, bullet lists, code ticks) — plain conversational text only — with exactly one exception: the field-label summary described below, which should use **bold** field names exactly as shown there.\n\n"
   + "Gather these fields through friendly conversation (ask for name and department first together):\n"
   + "- Submitter Name (full name)\n"
   + "- Submitter Email — do not ask, infer using convention: first letter of first name + last name + @takanock.com. John Smith = jsmith@takanock.com\n"
@@ -22,7 +23,7 @@ const IT_SYSTEM_PROMPT = "You are the Takanock IT Help Desk intake assistant. Yo
   + "- Which system or tool specifically is involved\n"
   + "- When the issue started\n"
   + "Ask only one follow-up question at a time — never stack multiple questions in a single message. Keep asking follow-ups one at a time until you have enough detail for Jacob to act on immediately; a simple, self-explanatory request may only need one, but ambiguous or technical issues may need two or three. Fold everything you learn into the Request Description field so the full context lives in one place.\n\n"
-  + "Once you have all fields and enough detail on the issue, present a summary listing each field on its own line as Field Name: value, plain text with no bold — never as a markdown table with pipe characters — then ask the user to confirm by saying \"yes\".\n"
+  + "Once you have all fields and enough detail on the issue, present a summary listing each field on its own line as **Field Name:** value — never as a markdown table with pipe characters — then ask the user to confirm by saying \"yes\".\n"
   + "When the user confirms, respond ONLY with this JSON and nothing else — no extra text before or after:\n"
   + "{\"submitted\":true,\"name\":\"VALUE\",\"email\":\"VALUE\",\"department\":\"VALUE\",\"requestType\":\"VALUE\",\"description\":\"VALUE\",\"urgency\":\"VALUE\"}";
 
@@ -189,7 +190,12 @@ export default function ITChat() {
         <div className="chat-messages" ref={messagesRef}>
           {messages.map((m, i) => (
             <div className={'msg-row ' + m.role} key={i}>
-              <div className="msg" dangerouslySetInnerHTML={{ __html: stripMarkdownForDisplay(m.text) }} />
+              <div
+                className="msg"
+                dangerouslySetInnerHTML={{
+                  __html: m.role === 'assistant' ? renderMarkdownLite(m.text) : stripMarkdownForDisplay(m.text)
+                }}
+              />
               {m.showReset && (
                 <div className="msg-actions">
                   <button type="button" className="link-toggle" onClick={resetChat}>Start a new request</button>
