@@ -146,6 +146,7 @@ main {
   font-weight: 600;
   cursor: pointer;
 }
+.link-toggle:hover { color: #cc4a2b; }
 .action-btn {
   background: var(--orange);
   color: var(--white);
