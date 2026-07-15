@@ -39,6 +39,13 @@ function isRecentTicket(t) {
 function TicketTable({ tickets }) {
   return (
     <table className="tickets">
+      <colgroup>
+        <col style={{ width: '15%' }} />
+        <col style={{ width: '20%' }} />
+        <col style={{ width: '12%' }} />
+        <col style={{ width: '10%' }} />
+        <col style={{ width: '43%' }} />
+      </colgroup>
       <thead>
         <tr><th>Name</th><th>Request Type</th><th>Status</th><th>Submitted</th><th>Description</th></tr>
       </thead>
@@ -149,15 +156,17 @@ export default function TicketLookup() {
         {status === 'done' && (
           <>
             <p className="muted">Showing requests from the past 10 days.</p>
-            {TICKET_SECTIONS.map((section) => (
-              <TicketSection
-                key={section.type}
-                section={section}
-                tickets={tickets}
-                showAll={!!expanded[section.type]}
-                onToggle={toggleSection}
-              />
-            ))}
+            <div className="ticket-tables">
+              {TICKET_SECTIONS.map((section) => (
+                <TicketSection
+                  key={section.type}
+                  section={section}
+                  tickets={tickets}
+                  showAll={!!expanded[section.type]}
+                  onToggle={toggleSection}
+                />
+              ))}
+            </div>
           </>
         )}
       </div>

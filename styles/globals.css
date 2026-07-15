@@ -294,8 +294,10 @@ main {
   border-radius: 6px;
   font-size: 14px;
 }
+.ticket-tables { width: 100%; }
 table.tickets {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   background: var(--white);
   border-radius: 10px;
