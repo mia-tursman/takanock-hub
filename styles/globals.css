@@ -322,7 +322,7 @@ table.tickets tr:last-child td { border-bottom: none; }
   white-space: nowrap;
 }
 .badge.new { background: #dbeafe; color: #111827; }
-.badge.in-progress { background: #d1fae5; color: #111827; }
+.badge.in-progress { background: #fef9c3; color: #111827; }
 .badge.complete { background: #d1fae5; color: #111827; }
 .badge.closed { background: #374151; color: #111827; }
 .badge.urgent { background: #fee2e2; color: #111827; }
@@ -330,8 +330,8 @@ table.tickets tr:last-child td { border-bottom: none; }
 .badge.medium { background: #fef9c3; color: #111827; }
 .badge.low { background: #f3f4f6; color: #111827; }
 .badge.triaged { background: #bfdbfe; color: #111827; }
-.badge.in-backlog { background: #fef9c3; color: #111827; }
-.badge.shipped { background: #dbeafe; color: #111827; }
+.badge.in-backlog { background: #ffedd5; color: #111827; }
+.badge.shipped { background: #d1fae5; color: #111827; }
 .badge.declined { background: #fee2e2; color: #111827; }
 .badge.duplicate { background: #ede9fe; color: #111827; }
 
