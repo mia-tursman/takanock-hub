@@ -22,11 +22,7 @@ function formatDate(dateStr) {
 }
 
 function statusBadgeClass(status) {
-  const s = (status || '').toLowerCase();
-  if (s.indexOf('progress') !== -1) return 'in-progress';
-  if (s.indexOf('resolved') !== -1) return 'resolved';
-  if (s.indexOf('closed') !== -1) return 'closed';
-  return 'new';
+  return (status || 'New').toLowerCase().replace(/\s+/g, '-');
 }
 
 // Tickets with a missing/unparseable date are treated as "older" rather
@@ -95,7 +91,6 @@ export default function TicketLookup() {
   const [bannerError, setBannerError] = useState(null);
   const [expanded, setExpanded] = useState({});
   const [submitDisabled, setSubmitDisabled] = useState(false);
-  const [foundResults, setFoundResults] = useState(false);
 
   function toggleSection(type, showAll) {
     setExpanded((prev) => ({ ...prev, [type]: showAll }));
@@ -110,7 +105,6 @@ export default function TicketLookup() {
     setStatus('searching');
     setExpanded({});
     setSubmitDisabled(true);
-    setFoundResults(false);
 
     fetch('/api/proxy', {
       method: 'POST',
@@ -127,7 +121,6 @@ export default function TicketLookup() {
         const list = Array.isArray(data) ? data : (data.tickets || []);
         setTickets(list);
         setStatus('done');
-        setFoundResults(list.length > 0);
       })
       .catch(() => {
         setStatus('idle');
@@ -146,7 +139,7 @@ export default function TicketLookup() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <button type="submit" className={'submit-btn' + (foundResults ? ' success' : '')} disabled={submitDisabled}>Find My Tickets</button>
+        <button type="submit" className="submit-btn" disabled={submitDisabled}>Find My Tickets</button>
       </form>
       <div>
         {bannerError && <div className="banner error">{bannerError}</div>}
