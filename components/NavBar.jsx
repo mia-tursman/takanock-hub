@@ -28,7 +28,12 @@ export default function NavBar({ activeView, onChangeView }) {
 
   return (
     <header className="topbar">
-      <img src="/takanock-logo.png" alt="Takanock" style={{ height: '24px', width: 'auto' }} />
+      <img
+        src="/takanock-logo.png"
+        alt="Takanock"
+        onClick={() => onChangeView('assistant')}
+        style={{ height: '24px', width: 'auto', cursor: 'pointer' }}
+      />
       <nav className="tabs">
         {TABS.map((t) => (
           <button
