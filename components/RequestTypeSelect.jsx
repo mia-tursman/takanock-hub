@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 const OPTIONS = [
   { value: 'it', label: 'IT Help Desk' },
   { value: 'gis', label: 'GIS Request' },
-  { value: 'automation', label: 'Automation Idea' }
+  { value: 'automation', label: 'Automation Idea' },
+  { value: 'legal', label: 'Legal Intake' }
 ];
 
 export default function RequestTypeSelect({ value, onChange }) {
