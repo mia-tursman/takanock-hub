@@ -8,11 +8,13 @@
 //   AIRTABLE_IT_TABLE        — IT Help Desk table ID
 //   AIRTABLE_GIS_TABLE       — GIS Request table ID
 //   AIRTABLE_AUTO_TABLE      — Automation Request table ID
+//   AIRTABLE_LEGAL_TABLE     — Legal Requests table ID
 
 const BASE = process.env.AIRTABLE_HUB_BASE;
 const IT_TABLE = process.env.AIRTABLE_IT_TABLE;
 const GIS_TABLE = process.env.AIRTABLE_GIS_TABLE;
 const AUTO_TABLE = process.env.AIRTABLE_AUTO_TABLE;
+const LEGAL_TABLE = process.env.AIRTABLE_LEGAL_TABLE;
 
 const IT_DEPARTMENTS = ['Finance', 'Development', 'Engineering', 'Operations', 'GIS', 'Executive', 'Other'];
 const IT_REQUEST_TYPES = ['Permissions Issue', 'Slack', 'Sharepoint', 'Hardware Issue', 'New Dataset', 'Other'];
@@ -20,6 +22,11 @@ const IT_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
 
 const GIS_REQUEST_TYPES = ['New map', 'New data source', 'Presentation support', 'Other'];
 const GIS_PRIORITIES = ['High', 'Medium', 'Low'];
+
+const LEGAL_DEPARTMENTS = ['Finance', 'Development', 'Engineering', 'Operations', 'GIS', 'Executive', 'Other'];
+const LEGAL_REQUEST_TYPES = ['Contract Review', 'NDA', 'Offer Letter', 'Board Consent', 'Other'];
+const LEGAL_PROJECTS = ['Baccara', 'Tallmadge', 'Connemara', 'Hale', 'Pacara', 'Glendale', 'Koneman', 'N/A'];
+const LEGAL_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -176,6 +183,26 @@ async function handleSubmit(record, table, res) {
     if (record.otherStakeholders) fields['Other Stakeholders'] = record.otherStakeholders;
 
     const data = await airtableCreate(BASE, AUTO_TABLE, fields);
+    return res.status(200).json({ id: data.id });
+  }
+
+  if (table === 'legal') {
+    const requesterName = record.requesterName || '';
+    const fields = {
+      'Requester Name': requesterName,
+      'Requester Email': deriveEmail(requesterName),
+      'Department': LEGAL_DEPARTMENTS.includes(department) ? department : 'Other',
+      'Request Type': LEGAL_REQUEST_TYPES.includes(record.requestType) ? record.requestType : 'Other',
+      'Project': LEGAL_PROJECTS.includes(record.project) ? record.project : 'N/A',
+      'Description': record.description || '',
+      'Counterparty': record.counterparty || '',
+      'Urgency': LEGAL_URGENCIES.includes(record.urgency) ? record.urgency : 'Medium',
+      'Status': 'New',
+      'Created At': now
+    };
+    if (record.documentLink) fields['Document Link'] = record.documentLink;
+
+    const data = await airtableCreate(BASE, LEGAL_TABLE, fields);
     return res.status(200).json({ id: data.id });
   }
 
