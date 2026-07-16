@@ -24,7 +24,7 @@ const GIS_PRIORITIES = ['High', 'Medium', 'Low'];
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -241,8 +241,8 @@ async function summarizeRequests(tickets) {
 
 async function handleLookup(email, res) {
   const safeEmail = String(email).replace(/"/g, '\\"');
-  const submitterFormula = `AND(LOWER({Submitter Email})=LOWER("${safeEmail}"), NOT({Status}="Closed"), NOT({Status}="Resolved"))`;
-  const requesterFormula = `AND(LOWER({Requester Email})=LOWER("${safeEmail}"), NOT({Status}="Closed"), NOT({Status}="Resolved"))`;
+  const submitterFormula = `LOWER({Submitter Email})=LOWER("${safeEmail}")`;
+  const requesterFormula = `LOWER({Requester Email})=LOWER("${safeEmail}")`;
 
   // Each table is queried independently and fails silently on its own — a
   // permissions error on one table should never block results from the others.
