@@ -58,6 +58,10 @@ export default function ChatInterface({ onOpenIntakeForm }) {
     autoResizeTextarea(inputRef.current);
   }, [inputValue]);
 
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.focus();
+  }, []);
+
   function sendMessage() {
     const text = inputValue.trim();
     if (!text) return;
@@ -94,7 +98,9 @@ export default function ChatInterface({ onOpenIntakeForm }) {
       })
       .then(() => {
         setDisabled(false);
-        if (inputRef.current) inputRef.current.focus();
+        setTimeout(() => {
+          if (inputRef.current) inputRef.current.focus();
+        }, 50);
       });
   }
 
