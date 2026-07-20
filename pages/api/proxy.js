@@ -130,7 +130,7 @@ async function getOrgChartDirectory() {
     return 'ORG CHART (use this to answer who to contact questions):\n'
       + records.map((r) => `${r.Name} - ${r.Title} (${r.Department}) - ${r.Email}`).join('\n');
   } catch (err) {
-    console.error('Org chart lookup failed:', err.message);
+    console.error('Org chart fetch failed:', err.message);
     return '';
   }
 }
@@ -350,7 +350,9 @@ async function handleChat(body, res) {
 
   const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
   const lastUserText = lastUserMessage ? String(lastUserMessage.content || '') : '';
-  if (CONTACT_KEYWORDS.test(lastUserText)) {
+  const isContactQuestion = CONTACT_KEYWORDS.test(lastUserText);
+  console.log('Org chart fetch triggered:', isContactQuestion);
+  if (isContactQuestion) {
     const orgChartDirectory = await getOrgChartDirectory();
     if (orgChartDirectory) system = `${system}\n\n${orgChartDirectory}`;
   }
