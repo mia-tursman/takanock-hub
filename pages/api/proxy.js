@@ -9,6 +9,10 @@
 //   AIRTABLE_GIS_TABLE       — GIS Request table ID
 //   AIRTABLE_AUTO_TABLE      — Automation Request table ID
 //   AIRTABLE_LEGAL_TABLE     — Legal Requests table ID
+//
+// The chat route also reads the Org Chart table (base appvNDBoDDGFshd5J,
+// table tblg3HtkMjh3qVq9S) via AIRTABLE_API_KEY to answer "who do I contact"
+// questions — see getOrgChartDirectory().
 
 const BASE = process.env.AIRTABLE_HUB_BASE;
 const IT_TABLE = process.env.AIRTABLE_IT_TABLE;
@@ -30,6 +34,16 @@ const LEGAL_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+
+const ORG_CHART_BASE = 'appvNDBoDDGFshd5J';
+const ORG_CHART_TABLE = 'tblg3HtkMjh3qVq9S';
+const ORG_CHART_FIELD_NAMES = {
+  fldojRXrKu5QJXzzH: 'Name',
+  fldO3adTbyobxzo5H: 'Title',
+  fldpWHLJecmfUB9ol: 'Department',
+  fldxPQMU7Dv3W2mjC: 'Email'
+};
+const CONTACT_KEYWORDS = /\b(who|contact|reach|email|handles|responsible|in charge|talk to|ask)\b/i;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -100,6 +114,32 @@ async function airtableList(baseId, tableId, formula, token) {
     throw new Error((data && data.error && (data.error.message || data.error.type)) || 'Airtable read failed');
   }
   return data.records || [];
+}
+
+// Fetches the Org Chart table and formats it as a plain-text directory for
+// injection into the chat system prompt. Fails silently — a directory
+// lookup failure should never break the chat itself.
+async function getOrgChartDirectory() {
+  try {
+    const url = `https://api.airtable.com/v0/${ORG_CHART_BASE}/${ORG_CHART_TABLE}?pageSize=100&returnFieldsByFieldId=true`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${AIRTABLE_API_KEY}` } });
+    if (!r.ok) return '';
+    const data = await r.json();
+    const records = (data.records || []).map((rec) => {
+      const fields = rec.fields || {};
+      const mapped = {};
+      for (const [fieldId, label] of Object.entries(ORG_CHART_FIELD_NAMES)) {
+        mapped[label] = fields[fieldId] || '';
+      }
+      return mapped;
+    });
+    if (!records.length) return '';
+    return 'ORG CHART (use this to answer who to contact questions):\n'
+      + records.map((r) => `${r.Name} - ${r.Title} (${r.Department}) - ${r.Email}`).join('\n');
+  } catch (err) {
+    console.error('Org chart lookup failed:', err.message);
+    return '';
+  }
 }
 
 /* -----------------------------------------------------------------
@@ -333,7 +373,14 @@ async function handleLookup(email, res) {
 
 async function handleChat(body, res) {
   const messages = body.messages || [];
-  const system = body.system || '';
+  let system = body.system || '';
+
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+  const lastUserText = lastUserMessage ? String(lastUserMessage.content || '') : '';
+  if (CONTACT_KEYWORDS.test(lastUserText)) {
+    const orgChartDirectory = await getOrgChartDirectory();
+    if (orgChartDirectory) system = `${system}\n\n${orgChartDirectory}`;
+  }
 
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
