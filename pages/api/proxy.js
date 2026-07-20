@@ -36,7 +36,7 @@ const ORG_CHART_FIELD_NAMES = {
   fldpWHLJecmfUB9ol: 'Department',
   fldxPQMU7Dv3W2mjC: 'Email'
 };
-const CONTACT_KEYWORDS = /\b(who|contact|reach|email|handles|responsible|in charge|talk to|ask)\b/i;
+const CONTACT_KEYWORDS = ['who', 'contact', 'reach', 'email', 'handles', 'responsible', 'in charge', 'talk to', 'ask', 'finance', 'legal', 'hr', 'engineering', 'development', 'commercial', 'scheduling', 'procurement', 'construction', 'baccara', 'tallmadge', 'hale', 'connemara', 'project', 'department', 'team'];
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -350,7 +350,7 @@ async function handleChat(body, res) {
 
   const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
   const lastUserText = lastUserMessage ? String(lastUserMessage.content || '') : '';
-  const isContactQuestion = CONTACT_KEYWORDS.test(lastUserText);
+  const isContactQuestion = CONTACT_KEYWORDS.some((k) => lastUserText.toLowerCase().includes(k));
   console.log('Org chart fetch triggered:', isContactQuestion);
   if (isContactQuestion) {
     const orgChartDirectory = await getOrgChartDirectory();
